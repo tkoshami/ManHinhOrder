@@ -1099,11 +1099,74 @@ class _OrderScreenState extends State<OrderScreen> {
       ),
     );
   }
+  Widget _buildMobileLayout() {
+    return Column(
+      children: [
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(8),
+            gridDelegate:
+            const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.75,
+            ),
+            itemCount: _filteredProducts.length,
+            itemBuilder: (context, index) {
+              final product = _filteredProducts[index];
 
+              return Card(
+                child: InkWell(
+                  onTap: () => _showDiscountDialog(context, product),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Image.network(
+                          product.imageUrl,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Text(product.name),
+                      Text(
+                        currencyFormat.format(product.price),
+                        style: const TextStyle(
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        Container(
+          padding: const EdgeInsets.all(12),
+          color: Colors.white,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${_cart.length} món - ${currencyFormat.format(_total)}',
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  _showAddProductSheet(context);
+                },
+                child: const Text('Giỏ hàng'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
   @override
   Widget build(BuildContext context) {
     final bool canCheckout =
         widget.user.role == UserRole.admin || widget.user.role == UserRole.cashier;
+    final isMobile = MediaQuery.of(context).size.width < 800;
 
     return Scaffold(
       appBar: AppBar(
@@ -1145,7 +1208,8 @@ class _OrderScreenState extends State<OrderScreen> {
           ),
         ],
       ),
-      body: Row(children: [
+      body: isMobile ? _buildMobileLayout()
+      :Row(children: [
         // ── Panel trái: menu sản phẩm ──
         Expanded(
           flex: 2,
