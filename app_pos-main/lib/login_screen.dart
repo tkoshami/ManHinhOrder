@@ -203,14 +203,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextFormField(
                           controller: _accountController,
                           textInputAction: TextInputAction.next,
+                          maxLength: 15,
                           decoration: _inputDecoration(
                             label: 'Tài khoản',
                             icon: Icons.person_outline_rounded,
+                          ).copyWith(
+                            counterText: '',
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Vui lòng nhập tài khoản';
                             }
+
+                            if (value.trim().length > 15) {
+                              return 'Tài khoản không được vượt quá 15 ký tự';
+                            }
+
                             return null;
                           },
                         ),
@@ -220,6 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           textInputAction: TextInputAction.done,
+                          maxLength: 20,
                           onFieldSubmitted: (_) => _submit(),
                           decoration: _inputDecoration(
                             label: 'Mật khẩu',
@@ -236,11 +245,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                     : Icons.visibility_outlined,
                               ),
                             ),
+                          ).copyWith(
+                            counterText: '',
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Vui lòng nhập mật khẩu';
                             }
+
+                            if (value.length > 20) {
+                              return 'Mật khẩu không được vượt quá 20 ký tự';
+                            }
+
                             return null;
                           },
                         ),
