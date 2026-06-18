@@ -91,7 +91,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
                   vatPercent: 0, // Staff không áp VAT, cashier xử lý
                   total: subtotal,
                   requestedMethod: 'Đợi thu tiền',
-                  source: OrderSource.pos_staff,
+                  source: OrderSource.posStaff,
                 ));
                 _cart = [];
               });
@@ -222,7 +222,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
                       ]))
                       : ListView.separated(
                     itemCount: _cart.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final item = _cart[index];
                       return ListTile(

@@ -133,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
+                        color: Colors.black.withValues(alpha: 0.08),
                         blurRadius: 24,
                         offset: const Offset(0, 12),
                       ),
@@ -148,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 76,
                           height: 76,
                           decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.12),
+                            color: Colors.orange.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -186,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.08),
+                            color: Colors.orange.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
@@ -203,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextFormField(
                           controller: _accountController,
                           textInputAction: TextInputAction.next,
-                          maxLength: 15,
+                          maxLength: 20,
                           decoration: _inputDecoration(
                             label: 'Tài khoản',
                             icon: Icons.person_outline_rounded,
@@ -215,8 +215,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               return 'Vui lòng nhập tài khoản';
                             }
 
-                            if (value.trim().length > 15) {
-                              return 'Tài khoản không được vượt quá 15 ký tự';
+                            if (value.trim().length > 20) {
+                              return 'Tài khoản không được vượt quá 20 ký tự';
                             }
 
                             return null;
@@ -228,7 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           textInputAction: TextInputAction.done,
-                          maxLength: 20,
+                          maxLength: 15,
                           onFieldSubmitted: (_) => _submit(),
                           decoration: _inputDecoration(
                             label: 'Mật khẩu',
@@ -253,8 +253,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               return 'Vui lòng nhập mật khẩu';
                             }
 
-                            if (value.length > 20) {
-                              return 'Mật khẩu không được vượt quá 20 ký tự';
+                            if (value.length > 15) {
+                              return 'Mật khẩu không được vượt quá 15 ký tự';
                             }
 
                             return null;

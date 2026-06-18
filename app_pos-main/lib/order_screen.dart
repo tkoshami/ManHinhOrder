@@ -47,6 +47,14 @@ class _OrderScreenState extends State<OrderScreen> {
   // Track đơn đang được mở từ danh sách chờ (null = đơn mới)
   SavedOrder? _currentPendingOrder;
 
+  // Track state of mobile bottom sheet
+  StateSetter? _sheetState;
+
+  void _syncState(VoidCallback fn) {
+    setState(fn);
+    _sheetState?.call(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -59,7 +67,7 @@ class _OrderScreenState extends State<OrderScreen> {
   double get _total => _subtotal + _vatAmount;
 
   void _filterProducts(String query) {
-    setState(() {
+    _syncState(() {
       _filteredProducts = _allProducts.where((p) {
         final matchesSearch = p.name.toLowerCase().contains(query.toLowerCase());
         final matchesCategory = _selectedCategory == 'Tất cả' || p.category == _selectedCategory;
@@ -71,7 +79,7 @@ class _OrderScreenState extends State<OrderScreen> {
 
   // ─── Thêm mới vào cart ───
   void _addToCartWithDiscount(Product product, double discountPercent, String note) {
-    setState(() {
+    _syncState(() {
       final index = _cart.indexWhere(
             (item) =>
         item.product.id == product.id &&
@@ -88,7 +96,7 @@ class _OrderScreenState extends State<OrderScreen> {
 
   // ─── Cập nhật cart item đã có (chỉnh sửa) ───
   void _updateCartItem(int cartIndex, double discountPercent, String note, int quantity) {
-    setState(() {
+    _syncState(() {
       if (quantity <= 0) {
         _cart.removeAt(cartIndex);
       } else {
@@ -103,14 +111,14 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   void _updateQuantity(int index, int delta) {
-    setState(() {
+    _syncState(() {
       _cart[index].quantity += delta;
       if (_cart[index].quantity <= 0) _cart.removeAt(index);
     });
   }
 
   void _resetOrder() {
-    setState(() {
+    _syncState(() {
       _cart = [];
       _vatPercent = 0;
       _currentPendingOrder = null;
@@ -132,7 +140,7 @@ class _OrderScreenState extends State<OrderScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng')),
           ElevatedButton(
-            onPressed: () { setState(() => _cart = []); Navigator.pop(context); },
+            onPressed: () { _syncState(() => _cart = []); Navigator.pop(context); },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('HỦY ĐƠN', style: TextStyle(color: Colors.white)),
           ),
@@ -142,7 +150,7 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   void _openPendingOrder(SavedOrder order) {
-    setState(() {
+    _syncState(() {
       _cart = List<CartItem>.from(order.items);
       _vatPercent = order.vatPercent;
       _selectedOrderType = order.tableOrCustomer;
@@ -153,7 +161,7 @@ class _OrderScreenState extends State<OrderScreen> {
 
   void _finishStaffOrder(BuildContext ctx, String method) {
     Navigator.pop(ctx);
-    setState(() {
+    _syncState(() {
       globalPendingOrders.add(SavedOrder(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         tableOrCustomer: _selectedOrderType,
@@ -163,7 +171,7 @@ class _OrderScreenState extends State<OrderScreen> {
         vatPercent: _vatPercent,
         total: _total,
         requestedMethod: method,
-        source: OrderSource.pos_staff,
+        source: OrderSource.posStaff,
       ));
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -176,7 +184,7 @@ class _OrderScreenState extends State<OrderScreen> {
   // ── Nút Tạm tính: lưu đơn vào pending rồi xóa giỏ ──
   void _savePending() {
     if (_cart.isEmpty) return;
-    setState(() {
+    _syncState(() {
       // Nếu đang chỉnh đơn pending cũ thì xóa bản cũ trước
       if (_currentPendingOrder != null) {
         globalPendingOrders.remove(_currentPendingOrder);
@@ -190,7 +198,7 @@ class _OrderScreenState extends State<OrderScreen> {
         vatPercent: _vatPercent,
         total: _total,
         requestedMethod: null,
-        source: OrderSource.pos_staff,
+        source: OrderSource.posStaff,
         status: OrderStatus.pending,
       ));
       _currentPendingOrder = null;
@@ -525,119 +533,6 @@ class _OrderScreenState extends State<OrderScreen> {
   // ══════════════════════════════════════════════
   // DIALOG: Chọn sản phẩm để thêm (từ giỏ hàng)
   // ══════════════════════════════════════════════
-  void _showAddProductSheet(BuildContext context) {
-    String sheetCategory = 'Tất cả';
-    String sheetSearch = '';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          final filtered = _allProducts.where((p) {
-            final matchSearch = p.name.toLowerCase().contains(sheetSearch.toLowerCase());
-            final matchCat = sheetCategory == 'Tất cả' || p.category == sheetCategory;
-            return matchSearch && matchCat;
-          }).toList();
-
-          return DraggableScrollableSheet(
-            initialChildSize: 0.85,
-            minChildSize: 0.5,
-            expand: false,
-            builder: (context, scrollController) => Column(
-              children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Row(children: [
-                    const Icon(Icons.add_shopping_cart, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    const Text('THÊM SẢN PHẨM', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const Spacer(),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                  ]),
-                ),
-
-                // Search
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: TextField(
-                    onChanged: (v) => setSheetState(() => sheetSearch = v),
-                    decoration: InputDecoration(
-                      hintText: 'Tìm món...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Category chips
-                SizedBox(
-                  height: 36,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    children: _categories.map((cat) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(cat, style: const TextStyle(fontSize: 12)),
-                        selected: sheetCategory == cat,
-                        onSelected: (sel) { if (sel) setSheetState(() => sheetCategory = cat); },
-                      ),
-                    )).toList(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Product grid
-                Expanded(
-                  child: GridView.builder(
-                    controller: scrollController,
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3, childAspectRatio: 0.75, crossAxisSpacing: 8, mainAxisSpacing: 8),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final product = filtered[index];
-                      return Card(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showDiscountDialog(context, product);
-                          },
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: ClipRRect(
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                                child: Image.network(product.imageUrl, fit: BoxFit.cover, width: double.infinity),
-                              )),
-                              Padding(
-                                padding: const EdgeInsets.all(6),
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  Text(currencyFormat.format(product.price), style: const TextStyle(color: Colors.orange, fontSize: 11)),
-                                ]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   // ══════════════════════════════════════════════
   // DIALOG: VAT
   // ══════════════════════════════════════════════
@@ -717,7 +612,7 @@ class _OrderScreenState extends State<OrderScreen> {
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy', style: TextStyle(color: Colors.grey))),
               ElevatedButton(
                 onPressed: () {
-                  setState(() => _vatPercent = (double.tryParse(vatController.text) ?? 0).clamp(0, 100));
+                  _syncState(() => _vatPercent = (double.tryParse(vatController.text) ?? 0).clamp(0, 100));
                   Navigator.pop(ctx);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.orange,
@@ -774,7 +669,7 @@ class _OrderScreenState extends State<OrderScreen> {
                         child: Image.network(
                           previewImage,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Center(
+                          errorBuilder: (_, _, _) => const Center(
                             child: Column(mainAxisSize: MainAxisSize.min, children: [
                               Icon(Icons.broken_image, color: Colors.grey, size: 36),
                               Text('URL ảnh không hợp lệ', style: TextStyle(color: Colors.grey, fontSize: 12)),
@@ -844,7 +739,7 @@ class _OrderScreenState extends State<OrderScreen> {
                     const Text('Danh mục *', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
-                      value: selectedCategory,
+                      initialValue: selectedCategory,
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.category_outlined, color: Colors.orange),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -913,7 +808,7 @@ class _OrderScreenState extends State<OrderScreen> {
                     imageUrl: imageUrl,
                     category: selectedCategory,
                   );
-                  setState(() {
+                  _syncState(() {
                     _allProducts.add(newProduct);
                     _filterProducts(_searchController.text); // refresh lưới
                   });
@@ -1001,7 +896,7 @@ class _OrderScreenState extends State<OrderScreen> {
       vatPercent: vatPctCopy,
       total: totalCopy,
       requestedMethod: paymentMethod,
-      source: OrderSource.pos_staff,
+      source: OrderSource.posStaff,
       status: OrderStatus.completed,
     ));
 
@@ -1099,6 +994,48 @@ class _OrderScreenState extends State<OrderScreen> {
       ),
     );
   }
+  void _showCartBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            _sheetState = setSheetState;
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.85,
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      children: [
+                        const Text('GIỎ HÀNG',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(child: _buildCartPanel()),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) => _sheetState = null);
+  }
+
   Widget _buildMobileLayout() {
     return Column(
       children: [
@@ -1151,9 +1088,7 @@ class _OrderScreenState extends State<OrderScreen> {
                 ),
               ),
               ElevatedButton(
-                onPressed: () {
-                  _showAddProductSheet(context);
-                },
+                onPressed: _showCartBottomSheet,
                 child: const Text('Giỏ hàng'),
               ),
             ],
@@ -1164,8 +1099,6 @@ class _OrderScreenState extends State<OrderScreen> {
   }
   @override
   Widget build(BuildContext context) {
-    final bool canCheckout =
-        widget.user.role == UserRole.admin || widget.user.role == UserRole.cashier;
     final isMobile = MediaQuery.of(context).size.width < 800;
 
     return Scaffold(
@@ -1187,8 +1120,9 @@ class _OrderScreenState extends State<OrderScreen> {
           const SizedBox(width: 8),
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == 'logout')
+              if (value == 'logout') {
                 Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+              }
             },
             itemBuilder: (context) => [
               PopupMenuItem(value: 'user', child: ListTile(
@@ -1255,7 +1189,7 @@ class _OrderScreenState extends State<OrderScreen> {
                       label: Text(cat),
                       selected: _selectedCategory == cat,
                       onSelected: (sel) {
-                        if (sel) setState(() { _selectedCategory = cat; _filterProducts(_searchController.text); });
+                        if (sel) _syncState(() { _selectedCategory = cat; _filterProducts(_searchController.text); });
                       },
                     ),
                   )).toList(),
@@ -1322,237 +1256,245 @@ class _OrderScreenState extends State<OrderScreen> {
         Container(
           width: 400,
           color: Colors.white,
-          child: Column(children: [
-            // Header giỏ hàng
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(children: [
-                const Text('GIỎ HÀNG', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const Spacer(),
-              ]),
-            ),
-
-            // ── Chọn hình thức dùng ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(
-                children: _orderTypes.map((type) {
-                  final icons = {
-                    'Mang về': Icons.shopping_bag_outlined,
-                    'Tại quán': Icons.table_restaurant,
-                    'Giao hàng': Icons.delivery_dining,
-                  };
-                  final selected = _selectedOrderType == type;
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedOrderType = type),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: selected ? Colors.orange : Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: selected ? Colors.orange : Colors.grey.shade300,
-                              width: selected ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(icons[type], size: 20,
-                                  color: selected ? Colors.white : Colors.grey[600]),
-                              const SizedBox(height: 2),
-                              Text(type,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: selected ? Colors.white : Colors.grey[600],
-                                  )),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-
-            const Divider(height: 1),
-
-            // Danh sách cart — bấm để chỉnh sửa
-            Expanded(
-              child: _cart.isEmpty
-                  ? const Center(child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey),
-                  SizedBox(height: 8),
-                  Text('Chưa có món nào', style: TextStyle(color: Colors.grey)),
-                ],
-              ))
-                  : ListView.separated(
-                itemCount: _cart.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final item = _cart[index];
-                  return InkWell(
-                    onTap: () => _showEditCartDialog(context, index),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Row(children: [
-                        // Thông tin sản phẩm
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          if (item.discountPercent > 0) ...[
-                            Text(currencyFormat.format(item.product.price),
-                                style: const TextStyle(decoration: TextDecoration.lineThrough,
-                                    color: Colors.grey, fontSize: 12)),
-                            Text('-${item.discountPercent.toStringAsFixed(0)}%  →  '
-                                '${currencyFormat.format(item.product.price * (1 - item.discountPercent / 100))}',
-                                style: const TextStyle(color: Colors.red, fontSize: 12)),
-                          ] else
-                            Text(currencyFormat.format(item.product.price),
-                                style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                          if (item.note.isNotEmpty)
-                            Row(children: [
-                              const Icon(Icons.sticky_note_2, size: 12, color: Colors.orange),
-                              const SizedBox(width: 4),
-                              Expanded(child: Text(item.note,
-                                  style: const TextStyle(fontSize: 11, color: Colors.orange,
-                                      fontStyle: FontStyle.italic),
-                                  overflow: TextOverflow.ellipsis)),
-                            ]),
-                        ])),
-
-                        // Số lượng + tổng
-                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                          Row(mainAxisSize: MainAxisSize.min, children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove, size: 18),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _updateQuantity(index, -1),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              child: Text('${item.quantity}',
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add, size: 18),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _updateQuantity(index, 1),
-                            ),
-                          ]),
-                          Text(currencyFormat.format(item.total),
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
-                        ]),
-                      ]),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            const Divider(height: 1),
-
-            // Tổng tiền + VAT
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Column(children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  const Text('Tạm tính:'),
-                  Text(currencyFormat.format(_subtotal)),
-                ]),
-                const SizedBox(height: 4),
-                InkWell(
-                  onTap: _showVatDialog,
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Row(children: [
-                      Text('VAT (${_vatPercent.toStringAsFixed(0)}%)  ',
-                          style: const TextStyle(color: Colors.blue)),
-                      const Icon(Icons.edit, size: 14, color: Colors.blue),
-                    ]),
-                    Text(currencyFormat.format(_vatAmount),
-                        style: const TextStyle(color: Colors.blue)),
-                  ]),
-                ),
-                const Divider(),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  const Text('TỔNG CỘNG:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(currencyFormat.format(_total),
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
-                ]),
-              ]),
-            ),
-
-            // Nút hành động
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              child: Column(children: [
-                // Hàng 1: Hủy đơn + Tạm tính
-                Row(children: [
-                  Expanded(child: OutlinedButton.icon(
-                    onPressed: _clearCart,
-                    icon: const Icon(Icons.delete_outline, color: Colors.red, size: 16),
-                    label: const Text('HỦY ĐƠN', style: TextStyle(color: Colors.red)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.red),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  )),
-                  const SizedBox(width: 10),
-                  Expanded(child: ElevatedButton.icon(
-                    onPressed: _cart.isEmpty ? null : _savePending,
-                    icon: const Icon(Icons.bookmark_add_outlined, color: Colors.white, size: 16),
-                    label: const Text('TẠM TÍNH', style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      disabledBackgroundColor: Colors.grey[300],
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  )),
-                ]),
-                const SizedBox(height: 8),
-                // Hàng 2: Thanh toán / Đặt món (full width)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: canCheckout
-                        ? _showCheckoutDialog
-                        : () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Xác nhận đặt món'),
-                          content: const Text('Gửi đơn hàng này cho Cashier?'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
-                            ElevatedButton(
-                                onPressed: () => _finishStaffOrder(context, 'Chờ thanh toán'),
-                                child: const Text('XÁC NHẬN')),
-                          ],
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: canCheckout ? Colors.orangeAccent : Colors.blue,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                    ),
-                    child: Text(canCheckout ? 'THANH TOÁN' : 'ĐẶT MÓN',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  ),
-                ),
-              ]),
-            ),
-          ]),
+          child: _buildCartPanel(),
         ),
       ]),
     );
+  }
+
+  Widget _buildCartPanel() {
+    final bool canCheckout =
+        widget.user.role == UserRole.admin || widget.user.role == UserRole.cashier;
+    final bool isMobile = _sheetState != null;
+
+    return Column(children: [
+      if (!isMobile)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(children: [
+            const Text('GIỎ HÀNG', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Spacer(),
+          ]),
+        ),
+
+      // ── Chọn hình thức dùng ──
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: Row(
+          children: _orderTypes.map((type) {
+            final icons = {
+              'Mang về': Icons.shopping_bag_outlined,
+              'Tại quán': Icons.table_restaurant,
+              'Giao hàng': Icons.delivery_dining,
+            };
+            final selected = _selectedOrderType == type;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: GestureDetector(
+                  onTap: () => _syncState(() => _selectedOrderType = type),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: selected ? Colors.orange : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selected ? Colors.orange : Colors.grey.shade300,
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icons[type], size: 20,
+                            color: selected ? Colors.white : Colors.grey[600]),
+                        const SizedBox(height: 2),
+                        Text(type,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: selected ? Colors.white : Colors.grey[600],
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+
+      const Divider(height: 1),
+
+      // Danh sách cart — bấm để chỉnh sửa
+      Expanded(
+        child: _cart.isEmpty
+            ? const Center(child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey),
+            SizedBox(height: 8),
+            Text('Chưa có món nào', style: TextStyle(color: Colors.grey)),
+          ],
+        ))
+            : ListView.separated(
+          itemCount: _cart.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final item = _cart[index];
+            return InkWell(
+              onTap: () => _showEditCartDialog(context, index),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(children: [
+                  // Thông tin sản phẩm
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    if (item.discountPercent > 0) ...[
+                      Text(currencyFormat.format(item.product.price),
+                          style: const TextStyle(decoration: TextDecoration.lineThrough,
+                              color: Colors.grey, fontSize: 12)),
+                      Text('-${item.discountPercent.toStringAsFixed(0)}%  →  '
+                          '${currencyFormat.format(item.product.price * (1 - item.discountPercent / 100))}',
+                          style: const TextStyle(color: Colors.red, fontSize: 12)),
+                    ] else
+                      Text(currencyFormat.format(item.product.price),
+                          style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                    if (item.note.isNotEmpty)
+                      Row(children: [
+                        const Icon(Icons.sticky_note_2, size: 12, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Expanded(child: Text(item.note,
+                            style: const TextStyle(fontSize: 11, color: Colors.orange,
+                                fontStyle: FontStyle.italic),
+                            overflow: TextOverflow.ellipsis)),
+                      ]),
+                  ])),
+
+                  // Số lượng + tổng
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _updateQuantity(index, -1),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text('${item.quantity}',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _updateQuantity(index, 1),
+                      ),
+                    ]),
+                    Text(currencyFormat.format(item.total),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                  ]),
+                ]),
+              ),
+            );
+          },
+        ),
+      ),
+
+      const Divider(height: 1),
+
+      // Tổng tiền + VAT
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Column(children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('Tạm tính:'),
+            Text(currencyFormat.format(_subtotal)),
+          ]),
+          const SizedBox(height: 4),
+          InkWell(
+            onTap: _showVatDialog,
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Row(children: [
+                Text('VAT (${_vatPercent.toStringAsFixed(0)}%)  ',
+                    style: const TextStyle(color: Colors.blue)),
+                const Icon(Icons.edit, size: 14, color: Colors.blue),
+              ]),
+              Text(currencyFormat.format(_vatAmount),
+                  style: const TextStyle(color: Colors.blue)),
+            ]),
+          ),
+          const Divider(),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('TỔNG CỘNG:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(currencyFormat.format(_total),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
+          ]),
+        ]),
+      ),
+
+      // Nút hành động
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        child: Column(children: [
+          // Hàng 1: Hủy đơn + Tạm tính
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(
+              onPressed: _clearCart,
+              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 16),
+              label: const Text('HỦY ĐƠN', style: TextStyle(color: Colors.red)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: ElevatedButton.icon(
+              onPressed: _cart.isEmpty ? null : _savePending,
+              icon: const Icon(Icons.bookmark_add_outlined, color: Colors.white, size: 16),
+              label: const Text('TẠM TÍNH', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                disabledBackgroundColor: Colors.grey[300],
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            )),
+          ]),
+          const SizedBox(height: 8),
+          // Hàng 2: Thanh toán / Đặt món (full width)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: canCheckout
+                  ? _showCheckoutDialog
+                  : () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Xác nhận đặt món'),
+                    content: const Text('Gửi đơn hàng này cho Cashier?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+                      ElevatedButton(
+                          onPressed: () => _finishStaffOrder(context, 'Chờ thanh toán'),
+                          child: const Text('XÁC NHẬN')),
+                    ],
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: canCheckout ? Colors.orangeAccent : Colors.blue,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: Text(canCheckout ? 'THANH TOÁN' : 'ĐẶT MÓN',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+          ),
+        ]),
+      ),
+    ]);
   }
 }
