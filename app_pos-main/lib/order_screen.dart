@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'login_screen.dart';
 import 'models.dart';
@@ -257,20 +258,39 @@ class _OrderScreenState extends State<OrderScreen> {
                   // % Giảm giá
                   const Text('Nhập % giảm giá:', style: TextStyle(fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: discountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(
-                      suffixText: '%',
-                      suffixStyle: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 16),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.orange, width: 2)),
-                      hintText: '0 - 100',
-                    ),
-                    onChanged: (_) => setDialogState(() {}),
+              TextField(
+                controller: discountController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                ],
+                decoration: InputDecoration(
+                  suffixText: '%',
+                  suffixStyle: const TextStyle(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.orange, width: 2),
+                  ),
+                  hintText: '0 - 100',
+                ),
+                onChanged: (value) {
+                  final discount = double.tryParse(value);
+
+                  if (discount != null && discount > 100) {
+                    discountController.text = '100';
+                    discountController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: discountController.text.length),
+                    );
+                  }
+
+                  setDialogState(() {});
+                },
+              ),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -359,6 +379,7 @@ class _OrderScreenState extends State<OrderScreen> {
     final discountController = TextEditingController(
         text: item.discountPercent == 0 ? '0' : item.discountPercent.toStringAsFixed(0));
     final noteController = TextEditingController(text: item.note);
+    final quantityController = TextEditingController(text: item.quantity.toString());
     int quantity = item.quantity;
 
     showDialog(
@@ -393,12 +414,37 @@ class _OrderScreenState extends State<OrderScreen> {
                     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       IconButton(
                         icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                        onPressed: () => setDialogState(() { if (quantity > 1) quantity--; }),
+                        onPressed: () => setDialogState(() {
+                          if (quantity > 1) {
+                            quantity--;
+                            quantityController.text = quantity.toString();
+                          }
+                        }),
                       ),
-                      Text('$quantity', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      SizedBox(
+                        width: 60,
+                        child: TextField(
+                          controller: quantityController,
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          onChanged: (val) {
+                            final n = int.tryParse(val);
+                            if (n != null) quantity = n;
+                            setDialogState(() {});
+                          },
+                        ),
+                      ),
                       IconButton(
                         icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                        onPressed: () => setDialogState(() => quantity++),
+                        onPressed: () => setDialogState(() {
+                          quantity++;
+                          quantityController.text = quantity.toString();
+                        }),
                       ),
                     ]),
                   ),
@@ -420,20 +466,38 @@ class _OrderScreenState extends State<OrderScreen> {
                   // % Giảm giá
                   const Text('% Giảm giá:', style: TextStyle(fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: discountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(
-                      suffixText: '%',
-                      suffixStyle: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 16),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.orange, width: 2)),
-                      hintText: '0 - 100',
+                TextField(
+                  controller: discountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                  ],
+                  decoration: InputDecoration(
+                    suffixText: '%',
+                    suffixStyle: const TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    onChanged: (_) => setDialogState(() {}),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.orange, width: 2),
+                    ),
+                    hintText: '0 - 100',
                   ),
+                  onChanged: (value) {
+                    final discount = double.tryParse(value);
+
+                    if (discount != null && discount > 100) {
+                      discountController.text = '100';
+                      discountController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: discountController.text.length),
+                      );
+                    }
+                    setDialogState(() {});
+                  },
+                ),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -1375,25 +1439,14 @@ class _OrderScreenState extends State<OrderScreen> {
 
                   // Số lượng + tổng
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(
-                        icon: const Icon(Icons.remove, size: 18),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _updateQuantity(index, -1),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text('${item.quantity}',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add, size: 18),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _updateQuantity(index, 1),
-                      ),
-                    ]),
+                    _CartQuantityInput(
+                      quantity: item.quantity,
+                      onChanged: (newQty) {
+                        _updateCartItem(index, item.discountPercent, item.note, newQty);
+                      },
+                      onIncrement: () => _updateQuantity(index, 1),
+                      onDecrement: () => _updateQuantity(index, -1),
+                    ),
                     Text(currencyFormat.format(item.total),
                         style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
                   ]),
@@ -1496,5 +1549,90 @@ class _OrderScreenState extends State<OrderScreen> {
         ]),
       ),
     ]);
+  }
+}
+
+class _CartQuantityInput extends StatefulWidget {
+  final int quantity;
+  final ValueChanged<int> onChanged;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+
+  const _CartQuantityInput({
+    required this.quantity,
+    required this.onChanged,
+    required this.onIncrement,
+    required this.onDecrement,
+  });
+
+  @override
+  State<_CartQuantityInput> createState() => _CartQuantityInputState();
+}
+
+class _CartQuantityInputState extends State<_CartQuantityInput> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.quantity.toString());
+  }
+
+  @override
+  void didUpdateWidget(_CartQuantityInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.quantity != oldWidget.quantity) {
+      final currentVal = int.tryParse(_controller.text);
+      if (currentVal != widget.quantity) {
+        _controller.text = widget.quantity.toString();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.remove, size: 18),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          onPressed: widget.onDecrement,
+        ),
+        SizedBox(
+          width: 40,
+          child: TextField(
+            controller: _controller,
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+            onChanged: (val) {
+              final n = int.tryParse(val);
+              if (n != null) {
+                widget.onChanged(n);
+              }
+            },
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add, size: 18),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          onPressed: widget.onIncrement,
+        ),
+      ],
+    );
   }
 }
