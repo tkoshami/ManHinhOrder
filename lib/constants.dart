@@ -1,4 +1,7 @@
+import 'package:intl/intl.dart';
 import 'models.dart';
+
+final NumberFormat appCurrencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
 final List<Product> defaultProducts = [
   Product(id: '1',  name: 'Cà Phê Sữa',       price: 29000, imageUrl: 'https://picsum.photos/200?random=1',  category: 'Cà phê'),
