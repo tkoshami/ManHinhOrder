@@ -1,5 +1,5 @@
 import 'package:intl/intl.dart';
-import 'models.dart';
+import 'package:pos_fnb/models/app_models.dart';
 
 final NumberFormat appCurrencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 

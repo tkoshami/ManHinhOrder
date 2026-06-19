@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import '../models.dart';
-import '../constants.dart';
+import '../models/app_models.dart';
+import '../data/constants.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
   final VoidCallback onTap;
 
-  // Tối ưu 1: Sử dụng const constructor để tránh rebuild thừa
   const ProductCard({super.key, required this.product, required this.onTap});
 
   @override
@@ -27,7 +26,6 @@ class ProductCard extends StatelessWidget {
                   product.imageUrl,
                   fit: BoxFit.cover,
                   width: double.infinity,
-                  // Tối ưu 2: Giới hạn kích thước cache để tiết kiệm RAM
                   cacheWidth: 300, 
                   errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.image)),
                 ),
@@ -46,7 +44,6 @@ class ProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    // Tối ưu 3: Dùng formatter dùng chung thay vì tạo mới
                     appCurrencyFormat.format(product.price),
                     style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                   ),

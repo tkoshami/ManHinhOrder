@@ -1,26 +1,11 @@
-class FeedbackModel {
-  final String id;
-  final String customerName;
-  final String phoneNumber;
-  final String content;
-  final DateTime dateTime;
+import 'package:pos_fnb/models/feedback_model.dart';
 
-  FeedbackModel({
-    required this.id,
-    required this.customerName,
-    required this.phoneNumber,
-    required this.content,
-    required this.dateTime,
-  });
-}
-
-// Danh sách feedback giả lập dùng chung cho toàn bộ app
 List<FeedbackModel> globalFeedbacks = [
   FeedbackModel(
     id: '1',
     customerName: 'Nguyễn Văn A',
     phoneNumber: '0901234567',
-    content: 'Cà phê sữa rất ngon, phục vụ nhanh!',
+    content: 'Nhật Lê đẹp trai quá, cho xin info!',
     dateTime: DateTime.now().subtract(const Duration(hours: 2)),
   ),
   FeedbackModel(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'main_navigation_screen.dart';
-import 'models.dart';
+import 'package:pos_fnb/screens/main_navigation_screen.dart';
+import 'package:pos_fnb/models/app_models.dart';
 
 // Mock users
 final List<UserAccount> mockUsers = [
