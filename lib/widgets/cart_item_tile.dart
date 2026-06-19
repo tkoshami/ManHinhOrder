@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../models.dart';
+import '../constants.dart';
 
 class CartItemTile extends StatelessWidget {
   final CartItem item;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onTap;
-  final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
-  CartItemTile({
+  const CartItemTile({
     super.key,
     required this.item,
     required this.onIncrement,
@@ -32,7 +31,7 @@ class CartItemTile extends StatelessWidget {
                   Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                   if (item.discountPercent > 0) ...[
                     Text(
-                      currencyFormat.format(item.product.price),
+                      appCurrencyFormat.format(item.product.price),
                       style: const TextStyle(
                         decoration: TextDecoration.lineThrough,
                         color: Colors.grey,
@@ -40,12 +39,12 @@ class CartItemTile extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '-${item.discountPercent.toStringAsFixed(0)}%  →  ${currencyFormat.format(item.product.price * (1 - item.discountPercent / 100))}',
+                      '-${item.discountPercent.toStringAsFixed(0)}%  →  ${appCurrencyFormat.format(item.product.price * (1 - item.discountPercent / 100))}',
                       style: const TextStyle(color: Colors.red, fontSize: 12),
                     ),
                   ] else
                     Text(
-                      currencyFormat.format(item.product.price),
+                      appCurrencyFormat.format(item.product.price),
                       style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   if (item.note.isNotEmpty)
@@ -97,7 +96,7 @@ class CartItemTile extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  currencyFormat.format(item.total),
+                  appCurrencyFormat.format(item.total),
                   style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
                 ),
               ],

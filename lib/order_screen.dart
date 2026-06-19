@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'login_screen.dart';
 import 'models.dart';
 import 'constants.dart';
@@ -26,7 +25,6 @@ class _OrderScreenState extends State<OrderScreen> {
   // --- UI State ---
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
   String _selectedOrderType = appOrderTypes[0];
   String _selectedCategory = appCategories[0];
@@ -67,21 +65,6 @@ class _OrderScreenState extends State<OrderScreen> {
         _cart[index].quantity++;
       } else {
         _cart.add(CartItem(product: product, discountPercent: discountPercent, note: note));
-      }
-    });
-  }
-
-  void _updateCartItem(int cartIndex, double discountPercent, String note, int quantity) {
-    setState(() {
-      if (quantity <= 0) {
-        _cart.removeAt(cartIndex);
-      } else {
-        _cart[cartIndex] = CartItem(
-          product: _cart[cartIndex].product,
-          quantity: quantity,
-          discountPercent: discountPercent,
-          note: note,
-        );
       }
     });
   }
@@ -158,7 +141,7 @@ class _OrderScreenState extends State<OrderScreen> {
     ));
   }
 
-  String _formatPrice(double price) => currencyFormat.format(price);
+  String _formatPrice(double price) => appCurrencyFormat.format(price);
 
   // --- Dialogs ---
   void _showConfirmDialog({
@@ -201,9 +184,6 @@ class _OrderScreenState extends State<OrderScreen> {
       )
     );
   }
-
-  // (The rest of the dialogs like _showDiscountDialog, _showEditCartDialog etc. 
-  // will be kept but simplified using common styles if possible)
 
   void _showDiscountDialog(BuildContext context, Product product) {
     final discountController = TextEditingController(text: '0');
@@ -358,7 +338,7 @@ class _OrderScreenState extends State<OrderScreen> {
       },
       itemBuilder: (context) => [
         PopupMenuItem(enabled: false, child: Text('${widget.user.name} (${widget.user.role.name})')),
-        const PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
+        const PopupMenuItem(value: 'logout', child: const Text('Đăng xuất')),
       ],
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -436,7 +416,7 @@ class _OrderScreenState extends State<OrderScreen> {
 
   Widget _buildCartSide(bool canCheckout) {
     return Column(children: [
-      const Padding(padding: EdgeInsets.all(16), child: Text('GIỎ HÀNG', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+      const Padding(padding: EdgeInsets.all(16), child: const Text('GIỎ HÀNG', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
       _buildOrderTypeSelector(),
       Expanded(child: _buildCartList()),
       _buildCartSummary(),
@@ -456,7 +436,7 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   Widget _buildCartList() {
-    if (_cart.isEmpty) return const Center(child: Text('Chưa có món nào'));
+    if (_cart.isEmpty) return const Center(child: const Text('Chưa có món nào'));
     return ListView.separated(
       itemCount: _cart.length,
       separatorBuilder: (_, __) => const Divider(height: 1),
@@ -464,7 +444,7 @@ class _OrderScreenState extends State<OrderScreen> {
         item: _cart[index],
         onIncrement: () => _updateQuantity(index, 1),
         onDecrement: () => _updateQuantity(index, -1),
-        onTap: () {}, // Could open edit dialog here
+        onTap: () {},
       ),
     );
   }
@@ -477,7 +457,7 @@ class _OrderScreenState extends State<OrderScreen> {
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('VAT:'), Text(_formatPrice(_vatAmount))]),
         const Divider(),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text('TỔNG CỘNG:', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('TỔNG CỘNG:', style: const TextStyle(fontWeight: FontWeight.bold)),
           Text(_formatPrice(_total), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
         ]),
       ]),
@@ -516,12 +496,11 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   void _showPendingOrdersSheet() {
-    // Simplified pending orders sheet
     showModalBottomSheet(
       context: context,
       builder: (context) => Column(
         children: [
-          const Padding(padding: EdgeInsets.all(16), child: Text('ĐƠN CHỜ')),
+          const Padding(padding: EdgeInsets.all(16), child: const Text('ĐƠN CHỜ')),
           Expanded(child: ListView.builder(
             itemCount: _pendingOrders.length,
             itemBuilder: (context, index) => ListTile(
