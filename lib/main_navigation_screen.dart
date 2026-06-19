@@ -34,12 +34,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     screens.add(const HistoryScreen());
     navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'));
 
+    // Thêm tab Phản hồi cho Cashier (để xem danh sách)
+    if (widget.currentUser.role == UserRole.cashier) {
+      screens.add(FeedbackScreen(currentUser: widget.currentUser));
+      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.feedback), label: 'Phản hồi'));
+    }
+
     // Thêm các tab đặc quyền cho Admin
     if (widget.currentUser.role == UserRole.admin) {
       screens.add(const StatsScreen());
       navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Thống kê'));
 
-      screens.add(const FeedbackScreen());
+      screens.add(FeedbackScreen(currentUser: widget.currentUser));
       navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.feedback), label: 'Phản hồi'));
     }
 
