@@ -4,6 +4,9 @@ import 'models.dart';
 import 'order_screen.dart';
 import 'login_screen.dart';
 import 'feedback_screen.dart';
+import 'constants.dart';
+import 'widgets/product_card.dart';
+import 'widgets/cart_item_tile.dart';
 
 class StaffOrderScreen extends StatefulWidget {
   final UserAccount user;
@@ -14,27 +17,15 @@ class StaffOrderScreen extends StatefulWidget {
 }
 
 class _StaffOrderScreenState extends State<StaffOrderScreen> {
-  final List<Product> _allProducts = [
-    Product(id: '1',  name: 'Cà Phê Sữa',       price: 29000, imageUrl: 'https://picsum.photos/200?random=1',  category: 'Cà phê'),
-    Product(id: '2',  name: 'Trà Đào Cam Sả',    price: 45000, imageUrl: 'https://picsum.photos/200?random=2',  category: 'Trà'),
-    Product(id: '3',  name: 'Bánh Mì Thịt',      price: 35000, imageUrl: 'https://picsum.photos/200?random=3',  category: 'Bánh'),
-    Product(id: '4',  name: 'Latte',              price: 49000, imageUrl: 'https://picsum.photos/200?random=4',  category: 'Cà phê'),
-    Product(id: '5',  name: 'Trà Sữa Trân Châu', price: 55000, imageUrl: 'https://picsum.photos/200?random=5',  category: 'Trà'),
-    Product(id: '6',  name: 'Croissant',          price: 32000, imageUrl: 'https://picsum.photos/200?random=6',  category: 'Bánh'),
-    Product(id: '7',  name: 'Americano',          price: 39000, imageUrl: 'https://picsum.photos/200?random=7',  category: 'Cà phê'),
-    Product(id: '8',  name: 'Mocha',              price: 52000, imageUrl: 'https://picsum.photos/200?random=8',  category: 'Cà phê'),
-    Product(id: '9',  name: 'Salad trộn',         price: 38000, imageUrl: 'https://picsum.photos/200?random=9',  category: 'Đồ ăn'),
-    Product(id: '10', name: 'Bánh Tiramisu',      price: 42000, imageUrl: 'https://picsum.photos/200?random=10', category: 'Bánh'),
-  ];
-
+  // --- Data ---
+  final List<Product> _allProducts = List.from(defaultProducts);
   List<Product> _filteredProducts = [];
   List<CartItem> _cart = [];
-  String _selectedCategory = 'Tất cả';
-  final List<String> _categories = ['Tất cả', 'Cà phê', 'Trà', 'Bánh', 'Đồ ăn'];
+  
+  // --- UI State ---
+  String _selectedCategory = appCategories[0];
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
   final TextEditingController _searchController = TextEditingController();
-
-  double get _subtotal => _cart.fold(0.0, (sum, item) => sum + item.total);
 
   @override
   void initState() {
@@ -42,6 +33,10 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
     _filteredProducts = _allProducts;
   }
 
+  // --- Computed ---
+  double get _subtotal => _cart.fold(0.0, (sum, item) => sum + item.total);
+
+  // --- Logic ---
   void _filterProducts(String query) {
     setState(() {
       _filteredProducts = _allProducts.where((p) {
@@ -89,7 +84,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
                   items: List<CartItem>.from(_cart),
                   dateTime: DateTime.now(),
                   subtotal: subtotal,
-                  vatPercent: 0, // Staff không áp VAT, cashier xử lý
+                  vatPercent: 0,
                   total: subtotal,
                   requestedMethod: 'Đợi thu tiền',
                   source: OrderSource.posStaff,
@@ -108,6 +103,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
     );
   }
 
+  // --- Build ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,7 +116,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
           TextButton.icon(
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const FeedbackScreen()),
+              MaterialPageRoute(builder: (_) => FeedbackScreen(currentUser: widget.user)),
             ),
             icon: const Icon(Icons.feedback_outlined, color: Colors.white),
             label: const Text(
@@ -138,167 +134,116 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
       ),
       body: Row(
         children: [
-          // ── Panel trái: sản phẩm ──
-          Expanded(
-            flex: 3,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _filterProducts,
-                    decoration: InputDecoration(
-                      hintText: 'Tìm món...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(bottom: 10, left: 8),
-                  child: Row(
-                    children: _categories.map((cat) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: ChoiceChip(
-                        label: Text(cat),
-                        selected: _selectedCategory == cat,
-                        onSelected: (_) => setState(() {
-                          _selectedCategory = cat;
-                          _filterProducts(_searchController.text);
-                        }),
-                      ),
-                    )).toList(),
-                  ),
-                ),
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 200, childAspectRatio: 0.8,
-                        crossAxisSpacing: 12, mainAxisSpacing: 12),
-                    itemCount: _filteredProducts.length,
-                    itemBuilder: (context, index) {
-                      final p = _filteredProducts[index];
-                      return Card(
-                        elevation: 2,
-                        child: InkWell(
-                          onTap: () => _addToCart(p),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: Image.network(p.imageUrl,
-                                  fit: BoxFit.cover, width: double.infinity)),
-                              Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(p.name,
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
-                                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  Text(currencyFormat.format(p.price),
-                                      style: const TextStyle(color: Colors.blue)),
-                                ]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Panel phải: giỏ hàng ──
-          Container(
-            width: 350,
-            decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(left: BorderSide(color: Colors.grey[200]!))),
-            child: Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('GIỎ HÀNG',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: _cart.isEmpty
-                      ? const Center(
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey),
-                        SizedBox(height: 8),
-                        Text('Chưa có món nào', style: TextStyle(color: Colors.grey)),
-                      ]))
-                      : ListView.separated(
-                    itemCount: _cart.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final item = _cart[index];
-                      return ListTile(
-                        title: Text(item.product.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(currencyFormat.format(item.product.price),
-                            style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove, size: 18),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => _updateQuantity(index, -1),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Text('${item.quantity}',
-                                style: const TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.bold)),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add, size: 18),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => _updateQuantity(index, 1),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(currencyFormat.format(item.total),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, color: Colors.blue)),
-                        ]),
-                      );
-                    },
-                  ),
-                ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    const Text('Tổng cộng:', style: TextStyle(fontSize: 16)),
-                    Text(currencyFormat.format(_subtotal),
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
-                  ]),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      onPressed: _submitOrder,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-                      child: const Text('ĐẶT MÓN',
-                          style: TextStyle(
-                              color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          Expanded(flex: 3, child: _buildProductPanel()),
+          Container(width: 350, color: Colors.white, child: _buildCartPanel()),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProductPanel() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            controller: _searchController,
+            onChanged: _filterProducts,
+            decoration: InputDecoration(
+              hintText: 'Tìm món...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        _buildCategoryChips(),
+        Expanded(child: _buildProductGrid()),
+      ],
+    );
+  }
+
+  Widget _buildCategoryChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(bottom: 10, left: 8),
+      child: Row(
+        children: appCategories.map((cat) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: ChoiceChip(
+            label: Text(cat),
+            selected: _selectedCategory == cat,
+            onSelected: (_) => setState(() {
+              _selectedCategory = cat;
+              _filterProducts(_searchController.text);
+            }),
+          ),
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildProductGrid() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 200, childAspectRatio: 0.8, crossAxisSpacing: 12, mainAxisSpacing: 12),
+      itemCount: _filteredProducts.length,
+      itemBuilder: (context, index) => ProductCard(
+        product: _filteredProducts[index],
+        onTap: () => _addToCart(_filteredProducts[index]),
+      ),
+    );
+  }
+
+  Widget _buildCartPanel() {
+    return Column(
+      children: [
+        const Padding(padding: EdgeInsets.all(16), child: Text('GIỎ HÀNG', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+        const Divider(height: 1),
+        Expanded(child: _buildCartList()),
+        const Divider(height: 1),
+        _buildCartTotal(),
+        _buildSubmitButton(),
+      ],
+    );
+  }
+
+  Widget _buildCartList() {
+    if (_cart.isEmpty) return const Center(child: Text('Chưa có món nào'));
+    return ListView.separated(
+      itemCount: _cart.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) => CartItemTile(
+        item: _cart[index],
+        onIncrement: () => _updateQuantity(index, 1),
+        onDecrement: () => _updateQuantity(index, -1),
+        onTap: () {},
+      ),
+    );
+  }
+
+  Widget _buildCartTotal() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        const Text('Tổng cộng:', style: TextStyle(fontSize: 16)),
+        Text(currencyFormat.format(_subtotal),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
+      ]),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: SizedBox(
+        width: double.infinity,
+        height: 55,
+        child: ElevatedButton(
+          onPressed: _submitOrder,
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+          child: const Text('ĐẶT MÓN', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        ),
       ),
     );
   }

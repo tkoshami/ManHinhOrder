@@ -19,29 +19,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> screens = [];
-    final List<BottomNavigationBarItem> navItems = [];
-
-    // Phân quyền cho Staff (Role: user)
+    // Nếu là Staff (role user), chuyển hướng sang trang StaffOrderScreen riêng biệt
     if (widget.currentUser.role == UserRole.user) {
-      screens.add(StaffOrderScreen(user: widget.currentUser));
-      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.add_shopping_cart), label: 'Tạo đơn'));
+      return StaffOrderScreen(user: widget.currentUser);
+    }
 
-      screens.add(const FeedbackScreen());
+    // Với Admin và Cashier, chuẩn bị danh sách màn hình và icon
+    final List<Widget> screens = [OrderScreen(user: widget.currentUser)];
+    final List<BottomNavigationBarItem> navItems = [
+      const BottomNavigationBarItem(icon: Icon(Icons.add_shopping_cart), label: 'Tạo đơn'),
+    ];
+
+    // Thêm tab Lịch sử cho Cashier và Admin
+    screens.add(const HistoryScreen());
+    navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'));
+
+    // Thêm tab Phản hồi cho Cashier (để xem danh sách)
+    if (widget.currentUser.role == UserRole.cashier) {
+      screens.add(FeedbackScreen(currentUser: widget.currentUser));
       navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.feedback), label: 'Phản hồi'));
-    } 
-    // Phân quyền cho Admin và Cashier
-    else {
-      screens.add(OrderScreen(user: widget.currentUser));
-      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.add_shopping_cart), label: 'Tạo đơn'));
+    }
 
-      screens.add(const HistoryScreen());
-      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'));
+    // Thêm các tab đặc quyền cho Admin
+    if (widget.currentUser.role == UserRole.admin) {
+      screens.add(const StatsScreen());
+      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Thống kê'));
 
-      if (widget.currentUser.role == UserRole.admin) {
-        screens.add(const StatsScreen());
-        navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Thống kê'));
-      }
+      screens.add(FeedbackScreen(currentUser: widget.currentUser));
+      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.feedback), label: 'Phản hồi'));
     }
 
     return Scaffold(
