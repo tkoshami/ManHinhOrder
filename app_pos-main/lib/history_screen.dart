@@ -234,7 +234,7 @@ class _OrderHistoryTab extends StatelessWidget {
       Expanded(
         child: ListView.separated(
           itemCount: orders.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final order = orders[index];
             return _OrderTile(
@@ -352,7 +352,7 @@ class _MethodList extends StatelessWidget {
       Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Row(children: [
             Icon(icon, color: color, size: 20),
@@ -367,7 +367,7 @@ class _MethodList extends StatelessWidget {
       Expanded(
         child: ListView.separated(
           itemCount: orders.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) => _OrderTile(
             order: orders[index],
             currencyFormat: currencyFormat,
@@ -413,7 +413,7 @@ class _OrderTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       leading: CircleAvatar(
-        backgroundColor: accentColor.withOpacity(0.12),
+        backgroundColor: accentColor.withValues(alpha: 0.12),
         child: Icon(Icons.receipt_long, color: accentColor, size: 20),
       ),
       title: Row(children: [

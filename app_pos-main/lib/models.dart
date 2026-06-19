@@ -1,5 +1,5 @@
 enum UserRole { admin, user, cashier }
-enum OrderSource { kiosk, qr_code, pos_staff }
+enum OrderSource { kiosk, qrCode, posStaff }
 enum OrderStatus { pending, cooking, completed, cancelled }
 
 class UserAccount {
