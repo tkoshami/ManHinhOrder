@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 import 'order_screen.dart';
 import 'login_screen.dart';
+import 'feedback_screen.dart';
 import 'constants.dart';
 import 'widgets/product_card.dart';
 import 'widgets/cart_item_tile.dart';
@@ -107,13 +108,27 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ĐẶT MÓN'),
+        title: const Text('ĐẶT MÓN', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         backgroundColor: Colors.blueAccent,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => FeedbackScreen(currentUser: widget.user)),
+            ),
+            icon: const Icon(Icons.feedback_outlined, color: Colors.white),
+            label: const Text(
+              'PHẢN HỒI',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+            onPressed: () => Navigator.pushReplacement(
+                context, MaterialPageRoute(builder: (_) => const LoginScreen())),
           ),
         ],
       ),

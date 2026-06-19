@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 import 'order_screen.dart';
 import 'login_screen.dart';
+import 'feedback_screen.dart';
 
 class StaffOrderScreen extends StatefulWidget {
   final UserAccount user;
@@ -116,6 +117,18 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
         backgroundColor: Colors.blueAccent,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FeedbackScreen()),
+            ),
+            icon: const Icon(Icons.feedback_outlined, color: Colors.white),
+            label: const Text(
+              'PHẢN HỒI',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => Navigator.pushReplacement(
