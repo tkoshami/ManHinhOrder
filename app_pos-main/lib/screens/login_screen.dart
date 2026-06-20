@@ -1,28 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pos_fnb/screens/main_navigation_screen.dart';
 import 'package:pos_fnb/models/app_models.dart';
-
-// Mock users
-final List<UserAccount> mockUsers = [
-  UserAccount(
-    name: 'Nguyễn Admin',
-    email: 'admin',
-    password: '1234',
-    role: UserRole.admin,
-  ),
-  UserAccount(
-    name: 'Trần Cashier',
-    email: 'cashier',
-    password: '1234',
-    role: UserRole.cashier,
-  ),
-  UserAccount(
-    name: 'Lê Staff',
-    email: 'user',
-    password: '1234',
-    role: UserRole.user,
-  ),
-];
+import 'package:pos_fnb/services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,39 +19,123 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    _checkExistingSession();
+  }
+
+  void _checkExistingSession() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null && session.user != null) {
+      final profile = await SupabaseService.getUserProfile(session.user!.id);
+      
+      final roleStr = profile?['role'] ?? 'staff';
+      final fullName = profile?['full_name'] ?? 
+                       session.user!.userMetadata?['full_name'] ?? 
+                       session.user!.email!.split('@')[0];
+
+      final user = UserAccount(
+        id: session.user!.id,
+        name: fullName,
+        email: session.user!.email!,
+        role: _mapRole(roleStr),
+      );
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MainNavigationScreen(currentUser: user),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _accountController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _submit() {
+  void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final account = _accountController.text.trim();
+    final email = _accountController.text.trim();
     final password = _passwordController.text.trim();
 
-    final user = mockUsers.where((u) {
-      return u.email == account && u.password == password;
-    }).firstOrNull;
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
 
-    if (user == null) {
+    try {
+      final response = await SupabaseService.signIn(email, password);
+      
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+
+      if (response.user != null) {
+        // Lấy thông tin role và full_name từ bảng profiles thay vì metadata cũ
+        final profile = await SupabaseService.getUserProfile(response.user!.id);
+        
+        final roleStr = profile?['role'] ?? 'staff';
+        final fullName = profile?['full_name'] ?? 
+                         response.user!.userMetadata?['full_name'] ?? 
+                         response.user!.email!.split('@')[0];
+
+        final user = UserAccount(
+          id: response.user!.id,
+          name: fullName,
+          email: response.user!.email!,
+          role: _mapRole(roleStr),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MainNavigationScreen(currentUser: user),
+          ),
+        );
+      }
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Sai tài khoản hoặc mật khẩu'),
+          content: Text(e.message == 'Invalid login credentials' 
+              ? 'Sai tài khoản hoặc mật khẩu' 
+              : 'Lỗi đăng nhập: ${e.message}'),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
         ),
       );
-      return;
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã xảy ra lỗi: $e'),
+          backgroundColor: Colors.red.shade600,
+        ),
+      );
     }
+  }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => MainNavigationScreen(currentUser: user),
-      ),
-    );
+  UserRole _mapRole(String roleStr) {
+    switch (roleStr.toLowerCase()) {
+      case 'admin':
+        return UserRole.admin;
+      case 'cashier':
+        return UserRole.cashier;
+      case 'user':
+        return UserRole.user;
+      default:
+        return UserRole.user;
+    }
   }
 
   InputDecoration _inputDecoration({
@@ -171,31 +235,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 8),
 
                         Text(
-                          'Đăng nhập để quản lý bán hàng và vận hành cửa hàng',
+                          'Đăng nhập bằng tài khoản nhân viên được cấp',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            'Demo: admin / cashier / user - mật khẩu: 1234',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.orange.shade800,
-                              fontWeight: FontWeight.w500,
-                            ),
                           ),
                         ),
                         const SizedBox(height: 32),

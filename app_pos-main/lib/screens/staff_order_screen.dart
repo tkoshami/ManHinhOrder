@@ -5,6 +5,7 @@ import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/screens/login_screen.dart';
 import 'package:pos_fnb/screens/feedback_screen.dart';
 import 'package:pos_fnb/data/constants.dart';
+import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:pos_fnb/widgets/product_card.dart';
 import 'package:pos_fnb/widgets/cart_item_tile.dart';
 
@@ -17,7 +18,8 @@ class StaffOrderScreen extends StatefulWidget {
 }
 
 class _StaffOrderScreenState extends State<StaffOrderScreen> {
-  final List<Product> _allProducts = List.from(defaultProducts);
+  List<Product> _allProducts = [];
+  bool _isLoadingProducts = true;
   List<Product> _filteredProducts = [];
   List<CartItem> _cart = [];
   
@@ -28,7 +30,17 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   @override
   void initState() {
     super.initState();
-    _filteredProducts = _allProducts;
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() => _isLoadingProducts = true);
+    final products = await SupabaseService.getProducts();
+    setState(() {
+      _allProducts = products.isEmpty ? List.from(defaultProducts) : products;
+      _filteredProducts = _allProducts;
+      _isLoadingProducts = false;
+    });
   }
 
   double get _subtotal => _cart.fold(0.0, (sum, item) => sum + item.total);
@@ -37,7 +49,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
     setState(() {
       _filteredProducts = _allProducts.where((p) {
         final matchesSearch = p.name.toLowerCase().contains(query.toLowerCase());
-        final matchesCategory = _selectedCategory == appCategories[0] || p.category == _selectedCategory;
+        final matchesCategory = _selectedCategory == appCategories[0] || p.categoryName == _selectedCategory;
         return matchesSearch && matchesCategory;
       }).toList();
     });
@@ -71,22 +83,32 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final subtotal = _subtotal;
+              final newOrder = SavedOrder(
+                id: (DateTime.now().millisecondsSinceEpoch % 10000000).toString(),
+                shiftId: null,
+                tableOrCustomer: 'Đơn từ Staff',
+                items: List<CartItem>.from(_cart),
+                dateTime: DateTime.now(),
+                subtotal: subtotal,
+                discountAmount: 0,
+                vatRate: 0,
+                vatAmount: 0,
+                totalAmount: subtotal,
+                paymentMethod: 'cash',
+                source: OrderSource.posStaff,
+                status: OrderStatus.pending,
+              );
+
+              // Lưu lên Supabase
+              await SupabaseService.saveOrder(newOrder);
+
               setState(() {
-                globalPendingOrders.add(SavedOrder(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  tableOrCustomer: 'Đơn từ Staff',
-                  items: List<CartItem>.from(_cart),
-                  dateTime: DateTime.now(),
-                  subtotal: subtotal,
-                  vatPercent: 0,
-                  total: subtotal,
-                  requestedMethod: 'Đợi thu tiền',
-                  source: OrderSource.posStaff,
-                ));
+                globalPendingOrders.add(newOrder);
                 _cart = [];
               });
+              if (!mounted) return;
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Đã đặt món thành công!'), backgroundColor: Colors.green),
@@ -152,7 +174,11 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
           ),
         ),
         _buildCategoryChips(),
-        Expanded(child: _buildProductGrid()),
+        Expanded(
+          child: _isLoadingProducts 
+            ? const Center(child: CircularProgressIndicator())
+            : _buildProductGrid(),
+        ),
       ],
     );
   }
