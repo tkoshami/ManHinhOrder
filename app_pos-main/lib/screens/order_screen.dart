@@ -5,6 +5,7 @@ import 'package:pos_fnb/data/constants.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/screens/login_screen.dart';
 import 'package:pos_fnb/models/app_models.dart';
+import 'package:pos_fnb/services/supabase_service.dart';
 
 class OrderScreen extends StatefulWidget {
   final UserAccount user;
@@ -15,7 +16,8 @@ class OrderScreen extends StatefulWidget {
 }
 
 class _OrderScreenState extends State<OrderScreen> {
-  final List<Product> _allProducts = List.from(defaultProducts);
+  List<Product> _allProducts = [];
+  bool _isLoadingProducts = true;
 
   List<Product> _filteredProducts = [];
   List<CartItem> _cart = [];
@@ -47,7 +49,17 @@ class _OrderScreenState extends State<OrderScreen> {
   @override
   void initState() {
     super.initState();
-    _filteredProducts = _allProducts;
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() => _isLoadingProducts = true);
+    final products = await SupabaseService.getProducts();
+    setState(() {
+      _allProducts = products.isEmpty ? List.from(defaultProducts) : products;
+      _filteredProducts = _allProducts;
+      _isLoadingProducts = false;
+    });
   }
 
   // ─── Tính tiền ───
@@ -59,7 +71,7 @@ class _OrderScreenState extends State<OrderScreen> {
     _syncState(() {
       _filteredProducts = _allProducts.where((p) {
         final matchesSearch = p.name.toLowerCase().contains(query.toLowerCase());
-        final matchesCategory = _selectedCategory == appCategories[0] || p.category == _selectedCategory;
+        final matchesCategory = _selectedCategory == appCategories[0] || p.categoryName == _selectedCategory;
         return matchesSearch && matchesCategory;
       }).toList();
     });
@@ -141,7 +153,7 @@ class _OrderScreenState extends State<OrderScreen> {
   void _openPendingOrder(SavedOrder order) {
     _syncState(() {
       _cart = List<CartItem>.from(order.items);
-      _vatPercent = order.vatPercent;
+      _vatPercent = order.vatRate;
       _selectedOrderType = order.tableOrCustomer;
       _currentPendingOrder = order; // nhớ đơn đang chỉnh
       globalPendingOrders.remove(order);
@@ -151,17 +163,22 @@ class _OrderScreenState extends State<OrderScreen> {
   void _finishStaffOrder(BuildContext ctx, String method) {
     Navigator.pop(ctx);
     _syncState(() {
-      globalPendingOrders.add(SavedOrder(
+      final newOrder = SavedOrder(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
+        shiftId: null, 
         tableOrCustomer: _selectedOrderType,
         items: List<CartItem>.from(_cart),
         dateTime: DateTime.now(),
         subtotal: _subtotal,
-        vatPercent: _vatPercent,
-        total: _total,
-        requestedMethod: method,
+        discountAmount: 0,
+        vatRate: _vatPercent,
+        vatAmount: _vatAmount,
+        totalAmount: _total,
+        paymentMethod: method == 'Tiền mặt' ? 'cash' : 'qr_code',
         source: OrderSource.posStaff,
-      ));
+        status: OrderStatus.pending,
+      );
+      globalPendingOrders.add(newOrder);
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('Đã đặt món thành công! Hình thức: $method. Đơn đã gửi cho Cashier.'),
@@ -171,34 +188,46 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   // ── Nút Tạm tính: lưu đơn vào pending rồi xóa giỏ ──
-  void _savePending() {
+  void _savePending() async {
     if (_cart.isEmpty) return;
+
+    final newOrder = SavedOrder(
+      id: _currentPendingOrder?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      shiftId: null,
+      tableOrCustomer: _selectedOrderType,
+      items: List<CartItem>.from(_cart),
+      dateTime: DateTime.now(),
+      subtotal: _subtotal,
+      discountAmount: 0, 
+      vatRate: _vatPercent,
+      vatAmount: _vatAmount,
+      totalAmount: _total,
+      paymentMethod: 'cash', 
+      source: OrderSource.posStaff,
+      status: OrderStatus.pending,
+    );
+
+    // Lưu lên Supabase
+    final success = await SupabaseService.saveOrder(newOrder);
+
     _syncState(() {
-      // Nếu đang chỉnh đơn pending cũ thì xóa bản cũ trước
       if (_currentPendingOrder != null) {
         globalPendingOrders.remove(_currentPendingOrder);
       }
-      globalPendingOrders.add(SavedOrder(
-        id: _currentPendingOrder?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        tableOrCustomer: _selectedOrderType,
-        items: List<CartItem>.from(_cart),
-        dateTime: DateTime.now(),
-        subtotal: _subtotal,
-        vatPercent: _vatPercent,
-        total: _total,
-        requestedMethod: null,
-        source: OrderSource.posStaff,
-        status: OrderStatus.pending,
-      ));
+      globalPendingOrders.add(newOrder);
       _currentPendingOrder = null;
       _cart = [];
       _vatPercent = 0;
       _selectedOrderType = appOrderTypes[0];
     });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Đã lưu tạm đơn hàng vào danh sách chờ'),
-      backgroundColor: Colors.blue,
-      duration: Duration(seconds: 2),
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(success 
+          ? 'Đã lưu tạm đơn hàng vào hệ thống' 
+          : 'Đã lưu cục bộ (Lỗi kết nối server)'),
+      backgroundColor: success ? Colors.blue : Colors.orange,
+      duration: const Duration(seconds: 2),
     ));
   }
 
@@ -852,8 +881,8 @@ class _OrderScreenState extends State<OrderScreen> {
               ElevatedButton.icon(
                 onPressed: () {
                   if (!formKey.currentState!.validate()) return;
-                  final newId = DateTime.now().millisecondsSinceEpoch.toString();
-                  final imageUrl = imageController.text.trim().isNotEmpty
+                  final newId = DateTime.now().millisecondsSinceEpoch % 1000000;
+                  final String imageUrl = imageController.text.trim().isNotEmpty
                       ? imageController.text.trim()
                       : 'https://picsum.photos/200?random=$newId';
                   final newProduct = Product(
@@ -861,7 +890,7 @@ class _OrderScreenState extends State<OrderScreen> {
                     name: nameController.text.trim(),
                     price: double.parse(priceController.text.trim()),
                     imageUrl: imageUrl,
-                    category: selectedCategory,
+                    categoryName: selectedCategory,
                   );
                   _syncState(() {
                     _allProducts.add(newProduct);
@@ -925,8 +954,8 @@ class _OrderScreenState extends State<OrderScreen> {
     _showReceiptDialog(method);
   }
 
-  void _showReceiptDialog(String paymentMethod) {
-    final orderId = 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+  void _showReceiptDialog(String paymentMethod) async {
+    final orderId = DateTime.now().millisecondsSinceEpoch.toString();
     final dateStr = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
     final itemsCopy = List<CartItem>.from(_cart);
     final subtotalCopy = _subtotal;
@@ -935,25 +964,32 @@ class _OrderScreenState extends State<OrderScreen> {
     final vatPctCopy = _vatPercent;
     final orderTypeCopy = _selectedOrderType;
 
+    final newOrder = SavedOrder(
+      id: orderId,
+      tableOrCustomer: orderTypeCopy,
+      items: itemsCopy,
+      dateTime: DateTime.now(),
+      subtotal: subtotalCopy,
+      discountAmount: 0,
+      vatRate: vatPctCopy,
+      vatAmount: vatAmtCopy,
+      totalAmount: totalCopy,
+      paymentMethod: paymentMethod == 'Tiền mặt' ? 'cash' : 'qr_code',
+      source: OrderSource.posStaff,
+      status: OrderStatus.completed,
+    );
+
+    // Lưu lên Supabase
+    await SupabaseService.saveOrder(newOrder);
+
     // Nếu đơn được mở từ pending → xóa khỏi danh sách chờ
     if (_currentPendingOrder != null) {
       globalPendingOrders.remove(_currentPendingOrder);
       _currentPendingOrder = null;
     }
 
-    // Lưu vào lịch sử đơn đã thanh toán
-    globalCompletedOrders.insert(0, SavedOrder(
-      id: orderId,
-      tableOrCustomer: orderTypeCopy,
-      items: itemsCopy,
-      dateTime: DateTime.now(),
-      subtotal: subtotalCopy,
-      vatPercent: vatPctCopy,
-      total: totalCopy,
-      requestedMethod: paymentMethod,
-      source: OrderSource.posStaff,
-      status: OrderStatus.completed,
-    ));
+    // Lưu vào lịch sử đơn đã thanh toán cục bộ
+    globalCompletedOrders.insert(0, newOrder);
 
     showDialog(
       context: context,
@@ -1036,8 +1072,8 @@ class _OrderScreenState extends State<OrderScreen> {
                   return ListTile(
                     leading: const CircleAvatar(child: Icon(Icons.table_restaurant)),
                     title: Text('Bàn: ${order.tableOrCustomer}'),
-                    subtitle: Text('HTTT: ${order.requestedMethod ?? "Chưa chọn"}'),
-                    trailing: Text(currencyFormat.format(order.total),
+                    subtitle: Text('HTTT: ${order.paymentMethod == 'cash' ? "Tiền mặt" : "QR Code"}'),
+                    trailing: Text(currencyFormat.format(order.totalAmount),
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     onTap: () { Navigator.pop(context); _openPendingOrder(order); },
                   );
@@ -1155,28 +1191,41 @@ class _OrderScreenState extends State<OrderScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 800;
+    final bool isAdmin = widget.user.role == UserRole.admin;
+    final bool isCashier = widget.user.role == UserRole.cashier;
+    final bool isUser = widget.user.role == UserRole.user;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('POS F&B', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.orangeAccent,
+        title: Text(
+          isUser ? 'MENU GỌI MÓN' : (isAdmin ? 'ADMIN - POS' : 'CASHIER - POS'),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: isUser ? Colors.green : (isAdmin ? Colors.orangeAccent : Colors.orange),
         actions: [
-          Stack(alignment: Alignment.center, children: [
-            IconButton(icon: const Icon(Icons.receipt_long, size: 28), onPressed: _showPendingOrdersSheet),
-            if (_pendingOrders.isNotEmpty)
-              Positioned(right: 8, top: 8, child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                child: Text('${_pendingOrders.length}',
-                    style: const TextStyle(color: Colors.white, fontSize: 10), textAlign: TextAlign.center),
-              )),
-          ]),
+          if (!isUser) // Khách hàng không xem được danh sách đơn chờ của người khác
+            Stack(alignment: Alignment.center, children: [
+              IconButton(icon: const Icon(Icons.receipt_long, size: 28), onPressed: _showPendingOrdersSheet),
+              if (_pendingOrders.isNotEmpty)
+                Positioned(right: 8, top: 8, child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  child: Text('${_pendingOrders.length}',
+                      style: const TextStyle(color: Colors.white, fontSize: 10), textAlign: TextAlign.center),
+                )),
+            ]),
           const SizedBox(width: 8),
           PopupMenuButton<String>(
-            onSelected: (value) {
+            onSelected: (value) async {
               if (value == 'logout') {
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+                await SupabaseService.signOut();
+                if (context.mounted) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                }
               }
             },
             itemBuilder: (context) => [
@@ -1219,16 +1268,17 @@ class _OrderScreenState extends State<OrderScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _showAddNewProductDialog,
-                  icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                  label: const Text('Sản phẩm mới', style: TextStyle(color: Colors.white, fontSize: 13)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                if (isAdmin) // Chỉ Admin mới được thêm sản phẩm trực tiếp
+                  ElevatedButton.icon(
+                    onPressed: _showAddNewProductDialog,
+                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                    label: const Text('Sản phẩm mới', style: TextStyle(color: Colors.white, fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
                   ),
-                ),
               ]),
             ),
 
@@ -1254,14 +1304,16 @@ class _OrderScreenState extends State<OrderScreen> {
 
             // ── Grid sản phẩm + card placeholder cuối ──
             Expanded(
-              child: GridView.builder(
+              child: _isLoadingProducts 
+                ? const Center(child: CircularProgressIndicator())
+                : GridView.builder(
                 padding: const EdgeInsets.all(8),
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 200, childAspectRatio: 0.75, crossAxisSpacing: 10, mainAxisSpacing: 10),
-                itemCount: _filteredProducts.length + 1,
+                itemCount: _filteredProducts.length + (isAdmin ? 1 : 0),
                 itemBuilder: (context, index) {
                   // Card placeholder cuối cùng
-                  if (index == _filteredProducts.length) {
+                  if (isAdmin && index == _filteredProducts.length) {
                     return Card(
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -1318,8 +1370,10 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   Widget _buildCartPanel() {
-    final bool canCheckout =
-        widget.user.role == UserRole.admin || widget.user.role == UserRole.cashier;
+    final bool isAdmin = widget.user.role == UserRole.admin;
+    final bool isCashier = widget.user.role == UserRole.cashier;
+    final bool isUser = widget.user.role == UserRole.user;
+    final bool canCheckout = isAdmin || isCashier;
     final bool isMobile = _sheetState != null;
 
     return Column(children: [
@@ -1460,15 +1514,15 @@ class _OrderScreenState extends State<OrderScreen> {
           ]),
           const SizedBox(height: 4),
           InkWell(
-            onTap: _showVatDialog,
+            onTap: (isAdmin || isCashier) ? _showVatDialog : null,
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Row(children: [
                 Text('VAT (${_vatPercent.toStringAsFixed(0)}%)  ',
-                    style: const TextStyle(color: Colors.blue)),
-                const Icon(Icons.edit, size: 14, color: Colors.blue),
+                    style: TextStyle(color: (isAdmin || isCashier) ? Colors.blue : Colors.grey)),
+                if (isAdmin || isCashier) const Icon(Icons.edit, size: 14, color: Colors.blue),
               ]),
               Text(currencyFormat.format(_vatAmount),
-                  style: const TextStyle(color: Colors.blue)),
+                  style: TextStyle(color: (isAdmin || isCashier) ? Colors.blue : Colors.grey)),
             ]),
           ),
           const Divider(),
@@ -1484,37 +1538,37 @@ class _OrderScreenState extends State<OrderScreen> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         child: Column(children: [
-          // Hàng 1: Hủy đơn + Tạm tính
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(
-              onPressed: _clearCart,
-              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 16),
-              label: const Text('HỦY ĐƠN', style: TextStyle(color: Colors.red)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.red),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-            )),
-            const SizedBox(width: 10),
-            Expanded(child: ElevatedButton.icon(
-              onPressed: _cart.isEmpty ? null : _savePending,
-              icon: const Icon(Icons.bookmark_add_outlined, color: Colors.white, size: 16),
-              label: const Text('TẠM TÍNH', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                disabledBackgroundColor: Colors.grey[300],
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-            )),
-          ]),
-          const SizedBox(height: 8),
+          if (!isUser) // Khách hàng không được hủy đơn hay tạm tính lung tung
+            Row(children: [
+              Expanded(child: OutlinedButton.icon(
+                onPressed: _clearCart,
+                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 16),
+                label: const Text('HỦY ĐƠN', style: TextStyle(color: Colors.red)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              )),
+              const SizedBox(width: 10),
+              Expanded(child: ElevatedButton.icon(
+                onPressed: _cart.isEmpty ? null : _savePending,
+                icon: const Icon(Icons.bookmark_add_outlined, color: Colors.white, size: 16),
+                label: const Text('TẠM TÍNH', style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  disabledBackgroundColor: Colors.grey[300],
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              )),
+            ]),
+          if (!isUser) const SizedBox(height: 8),
           // Hàng 2: Thanh toán / Đặt món (full width)
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: canCheckout
-                  ? _showCheckoutDialog
-                  : () {
+                  ? (_cart.isEmpty ? null : _showCheckoutDialog)
+                  : (_cart.isEmpty ? null : () {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -1528,12 +1582,12 @@ class _OrderScreenState extends State<OrderScreen> {
                     ],
                   ),
                 );
-              },
+              }),
               style: ElevatedButton.styleFrom(
-                backgroundColor: canCheckout ? Colors.orangeAccent : Colors.blue,
+                backgroundColor: isUser ? Colors.green : (canCheckout ? Colors.orangeAccent : Colors.blue),
                 padding: const EdgeInsets.symmetric(vertical: 15),
               ),
-              child: Text(canCheckout ? 'THANH TOÁN' : 'ĐẶT MÓN',
+              child: Text(isUser ? 'GỬI ĐƠN' : (canCheckout ? 'THANH TOÁN' : 'ĐẶT MÓN'),
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
           ),

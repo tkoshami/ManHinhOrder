@@ -1,36 +1,44 @@
-enum UserRole { admin, user, cashier }
-
+enum UserRole { admin, cashier, user }
 enum OrderSource { kiosk, qrCode, posStaff }
-
 enum OrderStatus { pending, cooking, completed, cancelled }
 
 class UserAccount {
+  final String id;
   final String name;
   final String email;
-  final String password;
   final UserRole role;
 
   UserAccount({
+    required this.id,
     required this.name,
     required this.email,
-    required this.password,
     required this.role,
   });
 }
 
+class Category {
+  final int id;
+  final String name;
+  Category({required this.id, required this.name});
+}
+
 class Product {
-  final String id;
+  final int id;
+  final int? categoryId;
   final String name;
   final double price;
   final String imageUrl;
-  final String category;
+  final String categoryName;
+  final bool isAvailable;
 
   Product({
     required this.id,
+    this.categoryId,
     required this.name,
     required this.price,
-    required this.imageUrl,
-    required this.category,
+    this.imageUrl = '',
+    this.categoryName = '',
+    this.isAvailable = true,
   });
 }
 
@@ -47,34 +55,41 @@ class CartItem {
     this.note = '',
   });
 
-  double get originalTotal => product.price * quantity;
-  double get total => originalTotal * (1 - discountPercent / 100);
+  double get total => (product.price * quantity) * (1 - discountPercent / 100);
 }
 
 class SavedOrder {
-  final String id;
-  final String tableOrCustomer;
+  final String? id;
+  final int? shiftId;
   final List<CartItem> items;
   final DateTime dateTime;
-  final double subtotal; // tổng trước VAT
-  final double vatPercent; // % VAT đã áp dụng
-  final double total; // tổng sau VAT
-  final String? requestedMethod;
+  final double subtotal;
+  final double discountAmount;
+  final double vatRate; // %
+  final double vatAmount;
+  final double totalAmount;
+  final String paymentMethod; 
+  final String tableOrCustomer;
   final OrderSource source;
-  OrderStatus status;
+  final OrderStatus status;
 
   SavedOrder({
-    required this.id,
-    required this.tableOrCustomer,
+    this.id,
+    this.shiftId,
     required this.items,
     required this.dateTime,
     required this.subtotal,
-    required this.vatPercent,
-    required this.total,
-    this.requestedMethod,
-    required this.source,
+    required this.discountAmount,
+    required this.vatRate,
+    required this.vatAmount,
+    required this.totalAmount,
+    required this.paymentMethod,
+    this.tableOrCustomer = 'Mang về',
+    this.source = OrderSource.posStaff,
     this.status = OrderStatus.pending,
   });
 
-  double get vatAmount => subtotal * vatPercent / 100;
+  // Backward compatibility getters
+  double get total => totalAmount;
+  double get vatPercent => vatRate;
 }

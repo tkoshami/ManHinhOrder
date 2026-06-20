@@ -19,40 +19,42 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.currentUser.role == UserRole.user) {
-      return StaffOrderScreen(user: widget.currentUser);
-    }
+    final bool isAdmin = widget.currentUser.role == UserRole.admin;
+    final bool isCashier = widget.currentUser.role == UserRole.cashier;
+    final bool isUser = widget.currentUser.role == UserRole.user;
 
     final List<Widget> screens = [OrderScreen(user: widget.currentUser)];
     final List<BottomNavigationBarItem> navItems = [
-      const BottomNavigationBarItem(icon: Icon(Icons.add_shopping_cart), label: 'Tạo đơn'),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.restaurant_menu), 
+        label: isUser ? 'Gọi món' : 'Tạo đơn',
+      ),
     ];
 
-    screens.add(const HistoryScreen());
-    navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'));
+    // Khách hàng (User) không thấy các tab quản lý
+    if (!isUser) {
+      screens.add(const HistoryScreen());
+      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'));
 
-    if (widget.currentUser.role == UserRole.cashier) {
-      screens.add(FeedbackScreen(currentUser: widget.currentUser));
-      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.feedback), label: 'Phản hồi'));
-    }
-
-    if (widget.currentUser.role == UserRole.admin) {
-      screens.add(const StatsScreen());
-      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Thống kê'));
+      if (isAdmin) {
+        screens.add(const StatsScreen());
+        navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Thống kê'));
+      }
 
       screens.add(FeedbackScreen(currentUser: widget.currentUser));
       navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.feedback), label: 'Phản hồi'));
     }
 
+    // Nếu chỉ có 1 item (User), không cần hiện BottomNavigationBar
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
         children: screens,
       ),
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: isUser ? null : BottomNavigationBar(
         currentIndex: _selectedIndex,
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.orange,
+        selectedItemColor: isAdmin ? Colors.orangeAccent : Colors.orange,
         unselectedItemColor: Colors.grey,
         onTap: (index) => setState(() => _selectedIndex = index),
         items: navItems,

@@ -18,7 +18,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   final _phoneController = TextEditingController();
   final _contentController = TextEditingController();
 
-  bool get _isAdminOrCashier =>
+  bool get _isAdminOrStaff =>
       widget.currentUser?.role == UserRole.admin ||
       widget.currentUser?.role == UserRole.cashier;
 
@@ -56,15 +56,17 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       _phoneController.clear();
       _contentController.clear();
       
-      if (widget.currentUser?.role == UserRole.user) {
-        Future.delayed(const Duration(seconds: 1), () => Navigator.pop(context));
+      if (widget.currentUser?.role == UserRole.cashier) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) Navigator.pop(context);
+        });
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isAdminOrCashier) {
+    if (_isAdminOrStaff) {
       return _buildFeedbackList();
     }
     return _buildFeedbackForm();

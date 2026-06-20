@@ -15,7 +15,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   List<SavedOrder> get _allOrders => globalCompletedOrders;
   List<SavedOrder> _byMethod(String method) =>
-      globalCompletedOrders.where((o) => o.requestedMethod == method).toList();
+      globalCompletedOrders.where((o) => o.paymentMethod == method).toList();
 
   double _sumTotal(List<SavedOrder> orders) =>
       orders.fold(0, (sum, o) => sum + o.total);
@@ -66,7 +66,7 @@ void showOrderDetail(BuildContext context, SavedOrder order, NumberFormat fmt, {
       title: Row(children: [
         const Icon(Icons.receipt, color: Colors.orange),
         const SizedBox(width: 8),
-        Flexible(child: Text(order.id,
+        Flexible(child: Text(order.id?.toString() ?? 'No ID',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             overflow: TextOverflow.ellipsis)),
       ]),
@@ -76,7 +76,7 @@ void showOrderDetail(BuildContext context, SavedOrder order, NumberFormat fmt, {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             _infoRow('Hình thức', order.tableOrCustomer),
             _infoRow('Thời gian', DateFormat('dd/MM/yyyy HH:mm').format(order.dateTime)),
-            _infoRow('Thanh toán', order.requestedMethod ?? '—'),
+            _infoRow('Thanh toán', order.paymentMethod == 'cash' ? 'Tiền mặt' : 'QR Code'),
             const Divider(),
             ...order.items.map((item) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
@@ -267,7 +267,7 @@ class _PaymentMethodTab extends StatelessWidget {
         Expanded(
           child: TabBarView(children: [
             _MethodList(
-              orders: byMethod('Tiền mặt'),
+              orders: byMethod('cash'),
               currencyFormat: currencyFormat,
               sumTotal: sumTotal,
               color: Colors.green,
@@ -275,7 +275,7 @@ class _PaymentMethodTab extends StatelessWidget {
               onRefresh: onRefresh,
             ),
             _MethodList(
-              orders: byMethod('Chuyển khoản'),
+              orders: byMethod('qr_code'),
               currencyFormat: currencyFormat,
               sumTotal: sumTotal,
               color: Colors.blue,
@@ -283,7 +283,7 @@ class _PaymentMethodTab extends StatelessWidget {
               onRefresh: onRefresh,
             ),
             _MethodList(
-              orders: byMethod('Thẻ'),
+              orders: byMethod('card'), // Giữ lại cho tương lai
               currencyFormat: currencyFormat,
               sumTotal: sumTotal,
               color: Colors.orange,
@@ -372,17 +372,9 @@ class _OrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final methodIcon = {
-      'Tiền mặt': Icons.money,
-      'Chuyển khoản': Icons.account_balance,
-      'Thẻ': Icons.credit_card,
-    }[order.requestedMethod] ?? Icons.payment;
-
-    final methodColor = {
-      'Tiền mặt': Colors.green,
-      'Chuyển khoản': Colors.blue,
-      'Thẻ': Colors.orange,
-    }[order.requestedMethod] ?? Colors.grey;
+    final methodIcon = order.paymentMethod == 'cash' ? Icons.money : Icons.qr_code;
+    final methodColor = order.paymentMethod == 'cash' ? Colors.green : Colors.blue;
+    final methodName = order.paymentMethod == 'cash' ? 'Tiền mặt' : 'QR Code';
 
     return ListTile(
       onTap: onTap,
@@ -391,7 +383,7 @@ class _OrderTile extends StatelessWidget {
         child: Icon(Icons.receipt_long, color: accentColor, size: 20),
       ),
       title: Row(children: [
-        Text(order.id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(order.id?.toString() ?? 'No ID', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -411,7 +403,7 @@ class _OrderTile extends StatelessWidget {
         const SizedBox(width: 8),
         Icon(methodIcon, size: 12, color: methodColor),
         const SizedBox(width: 2),
-        Text(order.requestedMethod ?? '—',
+        Text(methodName,
             style: TextStyle(fontSize: 12, color: methodColor)),
       ]),
       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
