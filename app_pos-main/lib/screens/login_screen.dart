@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:pos_fnb/screens/main_navigation_screen.dart';
 import 'package:pos_fnb/models/app_models.dart';
+import 'package:pos_fnb/screens/main_navigation_screen.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -28,11 +28,12 @@ class _LoginScreenState extends State<LoginScreen> {
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null && session.user != null) {
       final profile = await SupabaseService.getUserProfile(session.user!.id);
-      
+
       final roleStr = profile?['role'] ?? 'staff';
-      final fullName = profile?['full_name'] ?? 
-                       session.user!.userMetadata?['full_name'] ?? 
-                       session.user!.email!.split('@')[0];
+      final fullName =
+          profile?['full_name'] ??
+          session.user!.userMetadata?['full_name'] ??
+          session.user!.email!.split('@')[0];
 
       final user = UserAccount(
         id: session.user!.id,
@@ -74,18 +75,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final response = await SupabaseService.signIn(email, password);
-      
+
       if (!mounted) return;
       Navigator.pop(context); // Close loading
 
       if (response.user != null) {
         // Lấy thông tin role và full_name từ bảng profiles thay vì metadata cũ
         final profile = await SupabaseService.getUserProfile(response.user!.id);
-        
+
         final roleStr = profile?['role'] ?? 'staff';
-        final fullName = profile?['full_name'] ?? 
-                         response.user!.userMetadata?['full_name'] ?? 
-                         response.user!.email!.split('@')[0];
+        final fullName =
+            profile?['full_name'] ??
+            response.user!.userMetadata?['full_name'] ??
+            response.user!.email!.split('@')[0];
 
         final user = UserAccount(
           id: response.user!.id,
@@ -106,9 +108,11 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pop(context); // Close loading
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.message == 'Invalid login credentials' 
-              ? 'Sai tài khoản hoặc mật khẩu' 
-              : 'Lỗi đăng nhập: ${e.message}'),
+          content: Text(
+            e.message == 'Invalid login credentials'
+                ? 'Sai tài khoản hoặc mật khẩu'
+                : 'Lỗi đăng nhập: ${e.message}',
+          ),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
         ),
@@ -176,10 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFFFFF7E8),
-              Color(0xFFFFE7C2),
-            ],
+            colors: [Color(0xFFFFF7E8), Color(0xFFFFE7C2)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -247,20 +248,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextFormField(
                           controller: _accountController,
                           textInputAction: TextInputAction.next,
-                          maxLength: 20,
+                          maxLength: 40,
                           decoration: _inputDecoration(
                             label: 'Tài khoản',
                             icon: Icons.person_outline_rounded,
-                          ).copyWith(
-                            counterText: '',
-                          ),
+                          ).copyWith(counterText: ''),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Vui lòng nhập tài khoản';
                             }
 
-                            if (value.trim().length > 20) {
-                              return 'Tài khoản không được vượt quá 20 ký tự';
+                            if (value.trim().length > 40) {
+                              return 'Tài khoản không được vượt quá 40 ký tự';
                             }
 
                             return null;
@@ -272,7 +271,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           textInputAction: TextInputAction.done,
-                          maxLength: 15,
+                          maxLength: 50,
                           onFieldSubmitted: (_) => _submit(),
                           decoration: _inputDecoration(
                             label: 'Mật khẩu',
@@ -289,16 +288,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                     : Icons.visibility_outlined,
                               ),
                             ),
-                          ).copyWith(
-                            counterText: '',
-                          ),
+                          ).copyWith(counterText: ''),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Vui lòng nhập mật khẩu';
                             }
 
-                            if (value.length > 15) {
-                              return 'Mật khẩu không được vượt quá 15 ký tự';
+                            if (value.length > 50) {
+                              return 'Mật khẩu không được vượt quá 50 ký tự';
                             }
 
                             return null;

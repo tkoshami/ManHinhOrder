@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:pos_fnb/screens/order_screen.dart';
-import 'package:pos_fnb/screens/staff_order_screen.dart';
 import 'package:pos_fnb/screens/history_screen.dart';
 import 'package:pos_fnb/screens/stats_screen.dart';
 import 'package:pos_fnb/screens/feedback_screen.dart';
@@ -20,7 +19,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isAdmin = widget.currentUser.role == UserRole.admin;
-    final bool isCashier = widget.currentUser.role == UserRole.cashier;
     final bool isUser = widget.currentUser.role == UserRole.user;
 
     final List<Widget> screens = [OrderScreen(user: widget.currentUser)];
