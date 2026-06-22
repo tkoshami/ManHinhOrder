@@ -97,7 +97,7 @@ class _OrderScreenState extends State<OrderScreen> {
             item.note == note,
       );
       if (index >= 0) {
-        _cart[index].quantity++;
+        if (_cart[index].quantity < 100) _cart[index].quantity++;
       } else {
         _cart.add(
           CartItem(
@@ -123,7 +123,7 @@ class _OrderScreenState extends State<OrderScreen> {
       } else {
         _cart[cartIndex] = CartItem(
           product: _cart[cartIndex].product,
-          quantity: quantity,
+          quantity: quantity > 100 ? 100 : quantity,
           discountPercent: discountPercent,
           note: note,
         );
@@ -133,8 +133,12 @@ class _OrderScreenState extends State<OrderScreen> {
 
   void _updateQuantity(int index, int delta) {
     _syncState(() {
-      _cart[index].quantity += delta;
-      if (_cart[index].quantity <= 0) _cart.removeAt(index);
+      final newQty = _cart[index].quantity + delta;
+      if (newQty <= 0) {
+        _cart.removeAt(index);
+      } else {
+        _cart[index].quantity = newQty > 100 ? 100 : newQty;
+      }
     });
   }
 
@@ -825,6 +829,7 @@ class _OrderScreenState extends State<OrderScreen> {
     );
     final noteController = TextEditingController(text: item.note);
     int quantity = item.quantity;
+    final qtyController = TextEditingController(text: '$quantity');
 
     showDialog(
       context: context,
@@ -871,15 +876,24 @@ class _OrderScreenState extends State<OrderScreen> {
                           Icons.remove_circle_outline,
                           color: Colors.red,
                         ),
-                        onPressed: () => setDialogState(() {
-                          if (quantity > 1) quantity--;
-                        }),
+                        onPressed: () {
+                          if (quantity <= 1) {
+                            Navigator.pop(context);
+                            _updateCartItem(cartIndex, 0, '', 0);
+                            return;
+                          }
+
+                          setDialogState(() {
+                            quantity--;
+                            qtyController.text = '$quantity';
+                          });
+                        },
                       ),
                       SizedBox(
                         width: 80,
                         child: TextField(
                           textAlign: TextAlign.center,
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
@@ -891,15 +905,22 @@ class _OrderScreenState extends State<OrderScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          controller: TextEditingController(text: '$quantity')
-                            ..selection = TextSelection.fromPosition(
-                              TextPosition(offset: '$quantity'.length),
-                            ),
+                          controller: qtyController,
                           onChanged: (v) {
                             final val = int.tryParse(v) ?? 0;
-                            if (val > 0) {
-                              quantity = val;
-                              setDialogState(() {});
+                            if (v.isEmpty || val <= 0) {
+                              Navigator.pop(context);
+                              _updateCartItem(cartIndex, 0, '', 0);
+                            } else if (val > 100) {
+                              qtyController.text = '100';
+                              qtyController.selection =
+                                  TextSelection.fromPosition(
+                                    const TextPosition(offset: 3),
+                                  );
+                              setDialogState(() => quantity = 100);
+                            } else {
+                              // Không ép controller.text ở đây để backspace hoạt động bình thường
+                              setDialogState(() => quantity = val);
                             }
                           },
                         ),
@@ -910,7 +931,10 @@ class _OrderScreenState extends State<OrderScreen> {
                           color: Colors.green,
                         ),
                         onPressed: () => setDialogState(() {
-                          quantity++;
+                          if (quantity < 100) {
+                            quantity++;
+                            qtyController.text = '$quantity';
+                          }
                         }),
                       ),
                     ],
@@ -1108,7 +1132,7 @@ class _OrderScreenState extends State<OrderScreen> {
                         flex: 2,
                         child: TextField(
                           controller: priceController,
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
@@ -1923,41 +1947,17 @@ class _OrderScreenState extends State<OrderScreen> {
                             ),
                             onPressed: () => _updateQuantity(index, -1),
                           ),
-                          SizedBox(
-                            width: 50,
-                            child: TextField(
-                              textAlign: TextAlign.center,
-                              keyboardType: TextInputType.number,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                              ],
-                              decoration: const InputDecoration(
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                border: InputBorder.none,
-                              ),
-                              controller:
-                                  TextEditingController(
-                                      text: '${item.quantity}',
-                                    )
-                                    ..selection = TextSelection.fromPosition(
-                                      TextPosition(
-                                        offset: '${item.quantity}'.length,
-                                      ),
-                                    ),
-                              onChanged: (v) {
-                                final val = int.tryParse(v) ?? 0;
-                                if (val > 0) {
-                                  _syncState(() => item.quantity = val);
-                                }
-                              },
-                            ),
+                          _CartItemQuantityInput(
+                            key: ValueKey('cart_qty_${item.product.id}_${item.discountPercent}_${item.note}'),
+                            quantity: item.quantity,
+                            onChanged: (val) {
+                              _syncState(() {
+                                item.quantity = val;
+                              });
+                            },
+                            onRemove: () {
+                              _syncState(() => _cart.removeAt(index));
+                            },
                           ),
                           IconButton(
                             icon: const Icon(
@@ -2004,41 +2004,9 @@ class _OrderScreenState extends State<OrderScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('VAT (%):'),
-                  SizedBox(
-                    width: 60,
-                    child: TextField(
-                      textAlign: TextAlign.right,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'^\d+\.?\d{0,2}'),
-                        ),
-                      ],
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                        border: InputBorder.none,
-                      ),
-                      controller:
-                          TextEditingController(
-                              text: _vatPercent.toStringAsFixed(0),
-                            )
-                            ..selection = TextSelection.fromPosition(
-                              TextPosition(
-                                offset: _vatPercent.toStringAsFixed(0).length,
-                              ),
-                            ),
-                      onChanged: (v) {
-                        final val = double.tryParse(v) ?? 0;
-                        if (val <= 100) {
-                          _syncState(() => _vatPercent = val);
-                        } else {
-                          _syncState(() => _vatPercent = 100);
-                        }
-                      },
-                    ),
+                  _VATInput(
+                    vatPercent: _vatPercent,
+                    onChanged: (val) => _syncState(() => _vatPercent = val),
                   ),
                 ],
               ),
@@ -2135,6 +2103,156 @@ class _OrderScreenState extends State<OrderScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _VATInput extends StatefulWidget {
+  final double vatPercent;
+  final Function(double) onChanged;
+
+  const _VATInput({required this.vatPercent, required this.onChanged});
+
+  @override
+  State<_VATInput> createState() => _VATInputState();
+}
+
+class _VATInputState extends State<_VATInput> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.vatPercent.toStringAsFixed(0));
+  }
+
+  @override
+  void didUpdateWidget(covariant _VATInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.vatPercent != oldWidget.vatPercent) {
+      if (_controller.text != widget.vatPercent.toStringAsFixed(0)) {
+        _controller.text = widget.vatPercent.toStringAsFixed(0);
+        _controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: _controller.text.length),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 60,
+      child: TextField(
+        textAlign: TextAlign.right,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+        ],
+        decoration: const InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+          border: InputBorder.none,
+        ),
+        controller: _controller,
+        onChanged: (v) {
+          final val = double.tryParse(v) ?? 0;
+          if (val <= 100) {
+            widget.onChanged(val);
+          } else {
+            _controller.text = '100';
+            _controller.selection = TextSelection.fromPosition(
+              const TextPosition(offset: 3),
+            );
+            widget.onChanged(100);
+          }
+        },
+      ),
+    );
+  }
+}
+
+class _CartItemQuantityInput extends StatefulWidget {
+  final int quantity;
+  final Function(int) onChanged;
+  final VoidCallback onRemove;
+
+  const _CartItemQuantityInput({
+    super.key,
+    required this.quantity,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  @override
+  State<_CartItemQuantityInput> createState() => _CartItemQuantityInputState();
+}
+
+class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.quantity.toString());
+  }
+
+  @override
+  void didUpdateWidget(covariant _CartItemQuantityInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.quantity != oldWidget.quantity) {
+      if (_controller.text != widget.quantity.toString()) {
+        _controller.text = widget.quantity.toString();
+        _controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: _controller.text.length),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 50,
+      child: TextField(
+        textAlign: TextAlign.center,
+        keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: const InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 4),
+          border: InputBorder.none,
+        ),
+        controller: _controller,
+        onChanged: (v) {
+          if (v.isEmpty || v == '0') {
+            widget.onRemove();
+          } else {
+            final val = int.tryParse(v) ?? 0;
+            if (val > 100) {
+              _controller.text = '100';
+              _controller.selection = TextSelection.fromPosition(
+                const TextPosition(offset: 3),
+              );
+              widget.onChanged(100);
+            } else {
+              widget.onChanged(val);
+            }
+          }
+        },
+      ),
     );
   }
 }

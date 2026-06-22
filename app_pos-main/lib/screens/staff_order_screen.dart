@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
@@ -68,9 +69,115 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
 
   void _updateQuantity(int index, int delta) {
     setState(() {
-      _cart[index].quantity += delta;
-      if (_cart[index].quantity <= 0) _cart.removeAt(index);
+      final newQty = _cart[index].quantity + delta;
+      if (newQty <= 0) {
+        _cart.removeAt(index);
+      } else {
+        _cart[index].quantity = newQty > 100 ? 100 : newQty;
+      }
     });
+  }
+
+  void _showEditCartDialog(int index) {
+    final item = _cart[index];
+    int quantity = item.quantity;
+    final qtyController = TextEditingController(text: '$quantity');
+    final noteController = TextEditingController(text: item.note);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Chỉnh sửa: ${item.product.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Số lượng:'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                    onPressed: () {
+                      if (quantity > 1) {
+                        setDialogState(() {
+                          quantity--;
+                          qtyController.text = '$quantity';
+                        });
+                      } else {
+                        Navigator.pop(context);
+                        setState(() => _cart.removeAt(index));
+                      }
+                    },
+                  ),
+                  SizedBox(
+                    width: 60,
+                    child: TextField(
+                      controller: qtyController,
+                      textAlign: TextAlign.center,
+                      keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onChanged: (v) {
+                        if (v.isEmpty || v == '0') {
+                          // Allow empty during typing, but will remove if saved empty
+                        } else {
+                          final val = int.tryParse(v) ?? 1;
+                          setDialogState(() => quantity = val > 100 ? 100 : val);
+                          if (val > 100) {
+                            qtyController.text = '100';
+                            qtyController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                    onPressed: () {
+                      if (quantity < 100) {
+                        setDialogState(() {
+                          quantity++;
+                          qtyController.text = '$quantity';
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: noteController,
+                decoration: const InputDecoration(labelText: 'Ghi chú', border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() => _cart.removeAt(index));
+              },
+              child: const Text('XÓA MÓN', style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  if (quantity <= 0) {
+                    _cart.removeAt(index);
+                  } else {
+                    _cart[index].quantity = quantity;
+                    _cart[index].note = noteController.text;
+                  }
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('LƯU'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _submitOrder() {
@@ -238,7 +345,16 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
         item: _cart[index],
         onIncrement: () => _updateQuantity(index, 1),
         onDecrement: () => _updateQuantity(index, -1),
-        onTap: () {},
+        onQuantityChanged: (val) {
+          setState(() {
+            if (val <= 0) {
+              _cart.removeAt(index);
+            } else {
+              _cart[index].quantity = val > 100 ? 100 : val;
+            }
+          });
+        },
+        onTap: () => _showEditCartDialog(index),
       ),
     );
   }
