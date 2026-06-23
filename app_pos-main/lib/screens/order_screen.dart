@@ -32,8 +32,8 @@ class _OrderScreenState extends State<OrderScreen> {
   String _selectedCategory = appCategories[0];
   final List<String> _categories = appCategories;
 
-  // VAT: lưu % dạng số (vd: 10 = 10%), mặc định 0
-  double _vatPercent = 0;
+  // VAT: lưu % dạng số (vd: 10 = 10%), mặc định 8
+  double _vatPercent = 8;
 
   // Track đơn đang được mở từ danh sách chờ (null = đơn mới)
   SavedOrder? _currentPendingOrder;
@@ -145,7 +145,7 @@ class _OrderScreenState extends State<OrderScreen> {
   void _resetOrder() {
     _syncState(() {
       _cart = [];
-      _vatPercent = 0;
+      _vatPercent = 8;
       _currentPendingOrder = null;
       _selectedOrderType = appOrderTypes[0];
       _selectedCategory = appCategories[0];
@@ -247,7 +247,7 @@ class _OrderScreenState extends State<OrderScreen> {
       globalPendingOrders.add(newOrder);
       _currentPendingOrder = null;
       _cart = [];
-      _vatPercent = 0;
+      _vatPercent = 8;
       _selectedOrderType = appOrderTypes[0];
     });
 
@@ -280,7 +280,10 @@ class _OrderScreenState extends State<OrderScreen> {
             ListTile(
               leading: const Icon(Icons.money, color: Colors.green),
               title: const Text('Tiền mặt'),
-              onTap: () => _finishPayment(order, 'Tiền mặt'),
+              onTap: () {
+                Navigator.pop(context);
+                _showCashPaymentDialog(order);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.account_balance, color: Colors.blue),
@@ -300,6 +303,270 @@ class _OrderScreenState extends State<OrderScreen> {
             child: const Text('Hủy'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showCashPaymentDialog(SavedOrder order) {
+    String receivedStr = '0';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final double receivedAmount = double.tryParse(receivedStr) ?? 0;
+          final double change =
+              receivedAmount > order.totalAmount
+                  ? receivedAmount - order.totalAmount
+                  : 0;
+
+          Widget buildNumBtn(
+            String text, {
+            VoidCallback? onPressed,
+            Color? color,
+          }) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: ElevatedButton(
+                  onPressed:
+                      onPressed ??
+                      () {
+                        setDialogState(() {
+                          if (receivedStr == '0') {
+                            receivedStr = text;
+                          } else {
+                            receivedStr += text;
+                          }
+                        });
+                      },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: color ?? Colors.grey[200],
+                    foregroundColor: Colors.black87,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Column(
+              children: [
+                const Text(
+                  'THANH TOÁN TIỀN MẶT',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Bàn/Khách: ${order.tableOrCustomer}',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 450,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Tổng cộng:',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            Text(
+                              currencyFormat.format(order.totalAmount),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Khách đưa:',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            Text(
+                              currencyFormat.format(receivedAmount),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Tiền thừa:',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            Text(
+                              currencyFormat.format(change),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          buildNumBtn('7'),
+                          buildNumBtn('8'),
+                          buildNumBtn('9'),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          buildNumBtn('4'),
+                          buildNumBtn('5'),
+                          buildNumBtn('6'),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          buildNumBtn('1'),
+                          buildNumBtn('2'),
+                          buildNumBtn('3'),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          buildNumBtn('0'),
+                          buildNumBtn('000'),
+                          buildNumBtn(
+                            'C',
+                            color: Colors.red[100],
+                            onPressed: () {
+                              setDialogState(() => receivedStr = '0');
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Gợi ý tiền mặt:',
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      [order.totalAmount, 'Đúng số tiền'],
+                      [10000.0, '10k'],
+                      [20000.0, '20k'],
+                      [50000.0, '50k'],
+                      [100000.0, '100k'],
+                      [200000.0, '200k'],
+                      [500000.0, '500k'],
+                    ].map((val) {
+                      return ActionChip(
+                        label: Text(val[1] as String),
+                        onPressed: () {
+                          setDialogState(() {
+                            receivedStr = (val[0] as double).toStringAsFixed(0);
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'QUAY LẠI',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed:
+                            receivedAmount >= order.totalAmount
+                                ? () => _finishPayment(order, 'Tiền mặt')
+                                : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'XÁC NHẬN ĐÃ THU TIỀN',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1357,7 +1624,7 @@ class _OrderScreenState extends State<OrderScreen> {
                                             color: Colors.green,
                                           ),
                                           label: const Text(
-                                            'Hoàn thành',
+                                            'Thanh toán',
                                             style: TextStyle(
                                               color: Colors.green,
                                               fontSize: 13,
@@ -1463,7 +1730,7 @@ class _OrderScreenState extends State<OrderScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
           child: Row(
             children: [
               Expanded(
@@ -1502,7 +1769,7 @@ class _OrderScreenState extends State<OrderScreen> {
               children: _categories
                   .map(
                     (cat) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 12),
                       child: ChoiceChip(
                         label: Text(cat, style: const TextStyle(fontSize: 12)),
                         selected: _selectedCategory == cat,
@@ -1521,51 +1788,90 @@ class _OrderScreenState extends State<OrderScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 8),
         Expanded(
-          child: GridView.builder(
+          child: _filteredProducts.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search_off, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'Không tìm thấy món nào phù hợp',
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                )
+              : GridView.builder(
             padding: const EdgeInsets.all(8),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 0.75,
+              childAspectRatio: 0.9,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
             itemCount: _filteredProducts.length,
             itemBuilder: (context, index) {
               final product = _filteredProducts[index];
+              final bool isInCart = _cart.any((item) => item.product.id == product.id);
+
               return Card(
+                clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: () => _showDiscountDialog(context, product),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Stack(
                     children: [
-                      Expanded(
-                        child: Image.network(
-                          product.imageUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
+                      Opacity(
+                        opacity: isInCart ? 0.4 : 1.0,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              product.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                            Expanded(
+                              child: Image.network(
+                                product.imageUrl,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                            Text(
-                              currencyFormat.format(product.price),
-                              style: const TextStyle(color: Colors.orange),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    product.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    currencyFormat.format(product.price),
+                                    style: const TextStyle(
+                                      color: Colors.orange,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
+                      if (isInCart)
+                        const Center(
+                          child: Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 40,
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -1695,11 +2001,11 @@ class _OrderScreenState extends State<OrderScreen> {
           : Row(
               children: [
                 Expanded(
-                  flex: 2,
+                  flex: 3,
                   child: Column(
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
                         child: Row(
                           children: [
                             Expanded(
@@ -1754,7 +2060,7 @@ class _OrderScreenState extends State<OrderScreen> {
                             children: _categories
                                 .map(
                                   (cat) => Padding(
-                                    padding: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.only(right: 12),
                                     child: ChoiceChip(
                                       label: Text(cat),
                                       selected: _selectedCategory == cat,
@@ -1775,75 +2081,126 @@ class _OrderScreenState extends State<OrderScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 8),
                       Expanded(
                         child: _isLoadingProducts
                             ? const Center(child: CircularProgressIndicator())
-                            : GridView.builder(
+                            : (_filteredProducts.isEmpty
+                                ? const Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.search_off,
+                                          size: 80,
+                                          color: Colors.grey,
+                                        ),
+                                        SizedBox(height: 16),
+                                        Text(
+                                          'Không tìm thấy món nào phù hợp',
+                                          style: TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : GridView.builder(
                                 padding: const EdgeInsets.all(8),
                                 gridDelegate:
-                                    const SliverGridDelegateWithMaxCrossAxisExtent(
-                                      maxCrossAxisExtent: 200,
-                                      childAspectRatio: 0.75,
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 5,
+                                      childAspectRatio: 0.8,
                                       crossAxisSpacing: 10,
                                       mainAxisSpacing: 10,
                                     ),
                                 itemCount: _filteredProducts.length,
                                 itemBuilder: (context, index) {
                                   final product = _filteredProducts[index];
+                                  final bool isInCart = _cart.any((item) => item.product.id == product.id);
+
                                   return Card(
+                                    clipBehavior: Clip.antiAlias,
                                     child: InkWell(
                                       onTap: () =>
                                           _showDiscountDialog(context, product),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                      child: Stack(
                                         children: [
-                                          Expanded(
-                                            child: Image.network(
-                                              product.imageUrl,
-                                              fit: BoxFit.cover,
-                                              width: double.infinity,
-                                            ),
-                                          ),
-                                          Padding(
-                                            padding: const EdgeInsets.all(8),
+                                          Opacity(
+                                            opacity: isInCart ? 0.4 : 1.0,
                                             child: Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                Text(
-                                                  product.name,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
+                                                Expanded(
+                                                  child: Image.network(
+                                                    product.imageUrl,
+                                                    fit: BoxFit.cover,
+                                                    width: double.infinity,
                                                   ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
                                                 ),
-                                                Text(
-                                                  currencyFormat.format(
-                                                    product.price,
-                                                  ),
-                                                  style: const TextStyle(
-                                                    color: Colors.orange,
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.all(8),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        product.name,
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 16,
+                                                        ),
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        currencyFormat.format(
+                                                          product.price,
+                                                        ),
+                                                        style: const TextStyle(
+                                                          color: Colors.orange,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 18,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
+                                          if (isInCart)
+                                            const Center(
+                                              child: Icon(
+                                                Icons.check_circle,
+                                                color: Colors.green,
+                                                size: 48,
+                                              ),
+                                            ),
                                         ],
                                       ),
                                     ),
                                   );
                                 },
-                              ),
+                              )),
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  width: 400,
-                  color: Colors.white,
-                  child: _buildCartPanel(),
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    color: Colors.white,
+                    child: _buildCartPanel(),
+                  ),
                 ),
               ],
             ),
@@ -1891,20 +2248,27 @@ class _OrderScreenState extends State<OrderScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: ChoiceChip(
                     showCheckmark: false,
-                    avatar: Icon(
-                      icon,
-                      size: 16,
-                      color: isSelected ? Colors.white : Colors.grey,
-                    ),
-                    label: Text(
-                      type,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    label: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          icon,
+                          size: 20,
+                          color: isSelected ? Colors.white : Colors.grey,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          type,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isSelected ? Colors.white : Colors.black87,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ],
                     ),
                     selected: isSelected,
                     selectedColor: Colors.orange,
@@ -1927,14 +2291,50 @@ class _OrderScreenState extends State<OrderScreen> {
                   itemBuilder: (context, index) {
                     final item = _cart[index];
                     return ListTile(
+                      leading: IconButton(
+                        icon: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
+                        onPressed: () {
+                          _syncState(() => _cart.removeAt(index));
+                        },
+                        tooltip: 'Xóa món này',
+                      ),
                       title: Text(
                         item.product.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: Text(
-                        '${currencyFormat.format(item.product.price)} x ${item.quantity}',
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${currencyFormat.format(item.product.price)} x ${item.quantity}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          if (item.discountPercent > 0)
+                            Text(
+                              'Giảm: ${item.discountPercent.toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          if (item.note.isNotEmpty)
+                            Text(
+                              'Ghi chú: ${item.note}',
+                              style: const TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: Colors.blueGrey,
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1976,7 +2376,7 @@ class _OrderScreenState extends State<OrderScreen> {
                               style: const TextStyle(
                                 color: Colors.orange,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 18,
                               ),
                             ),
                           ),
@@ -1995,19 +2395,39 @@ class _OrderScreenState extends State<OrderScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Tạm tính:'),
-                  Text(currencyFormat.format(_subtotal)),
+                  const Text(
+                    'Tạm tính:',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    currencyFormat.format(_subtotal),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('VAT (%):'),
-                  _VATInput(
-                    vatPercent: _vatPercent,
-                    onChanged: (val) => _syncState(() => _vatPercent = val),
+                  const Text(
+                    'VAT (%):',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
+                  isAdmin
+                      ? _VATInput(
+                        vatPercent: _vatPercent,
+                        onChanged: (val) => _syncState(() => _vatPercent = val),
+                      )
+                      : Text(
+                        '${_vatPercent.toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                 ],
               ),
               Row(
@@ -2015,7 +2435,11 @@ class _OrderScreenState extends State<OrderScreen> {
                 children: [
                   Text(
                     currencyFormat.format(_vatAmount),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -2038,66 +2462,84 @@ class _OrderScreenState extends State<OrderScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (!isUser)
-                Row(
-                  children: [
+              Row(
+                children: [
+                  if (!isUser) ...[
                     Expanded(
+                      flex: 1,
                       child: OutlinedButton(
                         onPressed: _clearCart,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                         child: const Text(
                           'XÓA GIỎ',
-                          style: TextStyle(color: Colors.red),
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                   ],
-                ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: canCheckout
-                      ? (_cart.isEmpty ? null : _confirmOrder)
-                      : (_cart.isEmpty
-                            ? null
-                            : () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: const Text('Xác nhận đặt món'),
-                                    content: const Text(
-                                      'Gửi đơn hàng này cho Cashier?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text('Hủy'),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () => _finishStaffOrder(
-                                          context,
-                                          'Đặt món',
+                  Expanded(
+                    flex: 1,
+                    child: ElevatedButton(
+                      onPressed: canCheckout
+                          ? (_cart.isEmpty ? null : _confirmOrder)
+                          : (_cart.isEmpty
+                                ? null
+                                : () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Xác nhận đặt món'),
+                                        content: const Text(
+                                          'Gửi đơn hàng này cho Cashier?',
                                         ),
-                                        child: const Text('XÁC NHẬN'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                            child: const Text('Hủy'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () => _finishStaffOrder(
+                                              context,
+                                              'Đặt món',
+                                            ),
+                                            child: const Text('XÁC NHẬN'),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isUser
-                        ? Colors.green
-                        : (canCheckout ? Colors.orangeAccent : Colors.blue),
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                  ),
-                  child: Text(
-                    isUser ? 'GỬI ĐƠN' : (canCheckout ? 'XÁC NHẬN' : 'ĐẶT MÓN'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                                    );
+                                  }),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isUser
+                            ? Colors.green
+                            : (canCheckout ? Colors.orangeAccent : Colors.blue),
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        isUser
+                            ? 'GỬI ĐƠN'
+                            : (canCheckout ? 'XÁC NHẬN' : 'ĐẶT MÓN'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
@@ -2147,17 +2589,23 @@ class _VATInputState extends State<_VATInput> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: 60,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(4),
+      ),
       child: TextField(
-        textAlign: TextAlign.right,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
         ],
         decoration: const InputDecoration(
           isDense: true,
-          contentPadding: EdgeInsets.zero,
+          contentPadding: EdgeInsets.symmetric(vertical: 8),
           border: InputBorder.none,
         ),
         controller: _controller,
