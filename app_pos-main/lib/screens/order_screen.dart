@@ -379,10 +379,11 @@ class _OrderScreenState extends State<OrderScreen> {
             ),
             content: SizedBox(
               width: 450,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.orange.withOpacity(0.1),
@@ -517,6 +518,7 @@ class _OrderScreenState extends State<OrderScreen> {
                 ],
               ),
             ),
+          ),
             actions: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
