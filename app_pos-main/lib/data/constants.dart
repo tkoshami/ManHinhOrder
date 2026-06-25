@@ -20,7 +20,8 @@ final List<String> appCategories = ['Tất cả', 'Cà phê', 'Trà', 'Bánh', '
 final List<String> appOrderTypes = ['Mang về', 'Tại quán', 'Giao hàng'];
 
 // VietQR Configuration
-const String vietQrBankId = '970423'; // TPBank
-const String vietQrAccountNo = '09172194820';
-const String vietQrAccountName = 'LE DUY MINH NHAT';
+const String vietQrBankId = '970432'; // VPBank
+const String vietQrBankShortName = 'VPBank';
+const String vietQrAccountNo = '1338383939';
+const String vietQrAccountName = 'NGUYEN LE TRUNG DUNG';
 const String vietQrTemplate = 'compact'; // print, compact, qr_only

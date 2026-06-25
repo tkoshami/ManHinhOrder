@@ -328,7 +328,8 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   void _showVietQRDialog(SavedOrder order) {
-    final String addInfo = 'Thanh toan don ${order.id ?? DateTime.now().millisecondsSinceEpoch % 100000}';
+    // Lấy mã đơn hàng làm nội dung chuyển khoản
+    final String addInfo = order.id.toString();
 
     showDialog(
       context: context,
