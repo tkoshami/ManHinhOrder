@@ -6,6 +6,8 @@ import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/screens/login_screen.dart';
 import 'package:pos_fnb/screens/profile_screen.dart';
+import 'package:pos_fnb/screens/settings_screen.dart';
+import 'package:pos_fnb/widgets/vietqr_display.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
 
 class OrderScreen extends StatefulWidget {
@@ -300,12 +302,18 @@ class _OrderScreenState extends State<OrderScreen> {
             ListTile(
               leading: const Icon(Icons.account_balance, color: Colors.blue),
               title: const Text('Chuyển khoản'),
-              onTap: () => _finishPayment(order, 'Chuyển khoản'),
+              onTap: () {
+                Navigator.pop(context);
+                _showVietQRDialog(order);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.credit_card, color: Colors.orange),
               title: const Text('Thẻ'),
-              onTap: () => _finishPayment(order, 'Thẻ'),
+              onTap: () {
+                Navigator.pop(context);
+                _finishPayment(order, 'Thẻ');
+              },
             ),
           ],
         ),
@@ -313,6 +321,57 @@ class _OrderScreenState extends State<OrderScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Hủy'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVietQRDialog(SavedOrder order) {
+    final String addInfo = 'Thanh toan don ${order.id ?? DateTime.now().millisecondsSinceEpoch % 100000}';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Center(
+          child: Text(
+            'QUÉT MÃ VIETQR',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        content: VietQRDisplay(
+          amount: order.totalAmount.toInt(),
+          description: addInfo,
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('HỦY'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () => _finishPayment(order, 'Chuyển khoản'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                    child: const Text(
+                      'XÁC NHẬN ĐÃ THU TIỀN',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1980,6 +2039,11 @@ class _OrderScreenState extends State<OrderScreen> {
                     builder: (context) => ProfileScreen(user: widget.user),
                   ),
                 );
+              } else if (value == 'settings') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                );
               } else if (value == 'logout') {
                 await SupabaseService.signOut();
                 if (context.mounted) {
@@ -2027,6 +2091,14 @@ class _OrderScreenState extends State<OrderScreen> {
                       ),
                     ),
                   ],
+                ),
+              ),
+              const PopupMenuDivider(height: 1),
+              const PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                  leading: Icon(Icons.settings),
+                  title: Text('Cài đặt POS'),
                 ),
               ),
               const PopupMenuDivider(height: 1),
