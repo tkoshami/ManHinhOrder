@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'POS F&B',
+      title: 'MarPOS',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         useMaterial3: true,

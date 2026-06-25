@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.marchix" "\0"
-            VALUE "FileDescription", "pos_fnb" "\0"
+            VALUE "FileDescription", "MarPOS" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "pos_fnb" "\0"
+            VALUE "InternalName", "MarPOS" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.marchix. All rights reserved." "\0"
-            VALUE "OriginalFilename", "pos_fnb.exe" "\0"
-            VALUE "ProductName", "pos_fnb" "\0"
+            VALUE "OriginalFilename", "MarPOS.exe" "\0"
+            VALUE "ProductName", "MarPOS" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
