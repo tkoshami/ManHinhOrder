@@ -6,6 +6,7 @@ import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/screens/login_screen.dart';
 import 'package:pos_fnb/screens/feedback_screen.dart';
 import 'package:pos_fnb/data/constants.dart';
+import 'package:pos_fnb/widgets/vietqr_display.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:pos_fnb/widgets/product_card.dart';
 import 'package:pos_fnb/widgets/cart_item_tile.dart';
@@ -185,45 +186,109 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xác nhận đặt món'),
-        content: const Text('Gửi đơn hàng này cho thu ngân?'),
+        title: const Center(child: Text('Phương thức thanh toán')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.send, color: Colors.blue),
+              title: const Text('Gửi thu ngân (Thanh toán sau)'),
+              onTap: () {
+                Navigator.pop(context);
+                _processOrder(null);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.qr_code, color: Colors.green),
+              title: const Text('Khách chuyển khoản ngay'),
+              onTap: () {
+                Navigator.pop(context);
+                _showVietQRDialog();
+              },
+            ),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () async {
-              final subtotal = _subtotal;
-              final newOrder = SavedOrder(
-                id: (DateTime.now().millisecondsSinceEpoch % 10000000).toString(),
-                shiftId: null,
-                tableOrCustomer: 'Đơn từ Staff',
-                items: List<CartItem>.from(_cart),
-                dateTime: DateTime.now(),
-                subtotal: subtotal,
-                discountAmount: 0,
-                vatRate: 0,
-                vatAmount: 0,
-                totalAmount: subtotal,
-                paymentMethod: 'cash',
-                source: OrderSource.posStaff,
-                status: OrderStatus.pending,
-              );
+        ],
+      ),
+    );
+  }
 
-              // Lưu lên Supabase
-              await SupabaseService.saveOrder(newOrder);
-
-              setState(() {
-                globalPendingOrders.add(newOrder);
-                _cart = [];
-              });
-              if (!mounted) return;
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã đặt món thành công!'), backgroundColor: Colors.green),
-              );
-            },
-            child: const Text('XÁC NHẬN'),
+  void _showVietQRDialog() {
+    final subtotal = _subtotal;
+    final orderId = (DateTime.now().millisecondsSinceEpoch % 1000000).toString();
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Center(child: Text('QUÉT MÃ VIETQR', style: TextStyle(fontWeight: FontWeight.bold))),
+        content: VietQRDisplay(
+          amount: subtotal.toInt(),
+          description: orderId,
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('HỦY'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _processOrder('qr_code', manualId: orderId);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  child: const Text('XÁC NHẬN ĐÃ CHUYỂN', style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _processOrder(String? paymentMethod, {String? manualId}) async {
+    final subtotal = _subtotal;
+    final newOrder = SavedOrder(
+      id: manualId ?? (DateTime.now().millisecondsSinceEpoch % 10000000).toString(),
+      shiftId: null,
+      tableOrCustomer: 'Đơn từ Staff',
+      items: List<CartItem>.from(_cart),
+      dateTime: DateTime.now(),
+      subtotal: subtotal,
+      discountAmount: 0,
+      vatRate: 0,
+      vatAmount: 0,
+      totalAmount: subtotal,
+      paymentMethod: paymentMethod ?? 'cash',
+      source: OrderSource.posStaff,
+      status: paymentMethod == null ? OrderStatus.pending : OrderStatus.completed,
+    );
+
+    await SupabaseService.saveOrder(newOrder);
+
+    setState(() {
+      if (paymentMethod == null) {
+        globalPendingOrders.add(newOrder);
+      }
+      _cart = [];
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(paymentMethod == null ? 'Đã gửi đơn thành công!' : 'Đã thanh toán thành công!'),
+        backgroundColor: Colors.green,
       ),
     );
   }
