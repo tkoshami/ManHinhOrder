@@ -1,6 +1,6 @@
 {
-    "name": "pos_fnb",
-    "short_name": "pos_fnb",
+    "name": "MarPOS",
+    "short_name": "MarPOS",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

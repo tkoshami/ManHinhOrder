@@ -5,6 +5,7 @@ import 'package:pos_fnb/data/constants.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/screens/login_screen.dart';
+import 'package:pos_fnb/screens/profile_screen.dart';
 import 'package:pos_fnb/screens/settings_screen.dart';
 import 'package:pos_fnb/widgets/vietqr_display.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
@@ -70,6 +71,17 @@ class _OrderScreenState extends State<OrderScreen> {
   double get _subtotal => _cart.fold(0, (sum, item) => sum + item.total);
   double get _vatAmount => _subtotal * _vatPercent / 100;
   double get _total => _subtotal + _vatAmount;
+
+  String _getRoleName(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Quản trị viên';
+      case UserRole.cashier:
+        return 'Thu ngân';
+      case UserRole.user:
+        return 'Nhân viên';
+    }
+  }
 
   void _filterProducts(String query) {
     _syncState(() {
@@ -2014,8 +2026,20 @@ class _OrderScreenState extends State<OrderScreen> {
             ),
           const SizedBox(width: 8),
           PopupMenuButton<String>(
+            offset: const Offset(0, 56),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 8,
             onSelected: (value) async {
-              if (value == 'settings') {
+              if (value == 'user') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProfileScreen(user: widget.user),
+                  ),
+                );
+              } else if (value == 'settings') {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -2033,11 +2057,43 @@ class _OrderScreenState extends State<OrderScreen> {
             itemBuilder: (context) => [
               PopupMenuItem(
                 value: 'user',
-                child: ListTile(
-                  leading: const Icon(Icons.person),
-                  title: Text('${widget.user.name} (${widget.user.role.name})'),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.orange.shade100,
+                      backgroundImage: widget.user.avatarUrl != null 
+                          ? NetworkImage(widget.user.avatarUrl!) 
+                          : null,
+                      child: widget.user.avatarUrl == null
+                          ? Text(
+                              widget.user.name.substring(0, 1).toUpperCase(),
+                              style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.user.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            _getRoleName(widget.user.role),
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const PopupMenuDivider(height: 1),
               const PopupMenuItem(
                 value: 'settings',
                 child: ListTile(
@@ -2045,24 +2101,56 @@ class _OrderScreenState extends State<OrderScreen> {
                   title: Text('Cài đặt POS'),
                 ),
               ),
-              const PopupMenuItem(
+              const PopupMenuDivider(height: 1),
+              PopupMenuItem(
                 value: 'logout',
-                child: ListTile(
-                  leading: Icon(Icons.logout, color: Colors.red),
-                  title: Text('Đăng xuất'),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.logout, color: Colors.red.shade600, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Đăng xuất',
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                  ],
                 ),
               ),
             ],
             child: Padding(
               padding: const EdgeInsets.only(right: 15),
-              child: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text(
-                  widget.user.name.substring(0, 1).toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.orange,
-                    fontWeight: FontWeight.bold,
-                  ),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: CircleAvatar(
+                  backgroundColor: Colors.white,
+                  backgroundImage: widget.user.avatarUrl != null 
+                      ? NetworkImage(widget.user.avatarUrl!) 
+                      : null,
+                  child: widget.user.avatarUrl == null
+                      ? Text(
+                          widget.user.name.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
                 ),
               ),
             ),

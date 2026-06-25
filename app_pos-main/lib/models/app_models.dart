@@ -7,13 +7,31 @@ class UserAccount {
   final String name;
   final String email;
   final UserRole role;
+  String? avatarUrl;
 
   UserAccount({
     required this.id,
     required this.name,
     required this.email,
     required this.role,
+    this.avatarUrl,
   });
+
+  UserAccount copyWith({
+    String? id,
+    String? name,
+    String? email,
+    UserRole? role,
+    String? avatarUrl,
+  }) {
+    return UserAccount(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
 }
 
 class Category {
