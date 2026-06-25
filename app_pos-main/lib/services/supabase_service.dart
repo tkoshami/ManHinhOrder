@@ -119,4 +119,19 @@ class SupabaseService {
       return null;
     }
   }
+
+  // --- SHOP SETTINGS ---
+  static Future<Map<String, dynamic>?> getShopPaymentSettings() async {
+    try {
+      final response = await _supabase
+          .from('shop_settings')
+          .select()
+          .limit(1)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      print('Lỗi lấy cấu hình ngân hàng: $e');
+      return null;
+    }
+  }
 }
