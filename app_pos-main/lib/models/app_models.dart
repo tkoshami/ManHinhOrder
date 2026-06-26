@@ -1,4 +1,4 @@
-enum UserRole { admin, cashier, user }
+﻿enum UserRole { admin, cashier, user }
 
 enum OrderSource { kiosk, qrCode, posStaff }
 
@@ -131,7 +131,7 @@ class SavedOrder {
       'total_amount': totalAmount,
       'payment_method': paymentMethod,
       'source': _sourceToDatabase(source),
-      'status': status.name,
+      'status': _statusToDatabase(status),
     };
   }
 
@@ -163,6 +163,33 @@ class SavedOrder {
     }
   }
 
+  static String _statusToDatabase(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+      case OrderStatus.cooking:
+        return 'pending';
+      case OrderStatus.completed:
+        return 'paid';
+      case OrderStatus.cancelled:
+        return 'cancelled';
+    }
+  }
+
+  static OrderStatus _statusFromDatabase(dynamic value) {
+    switch (value?.toString()) {
+      case 'pending':
+        return OrderStatus.pending;
+      case 'paid':
+      case 'completed':
+        return OrderStatus.completed;
+      case 'cancelled':
+        return OrderStatus.cancelled;
+      case 'cooking':
+        return OrderStatus.cooking;
+      default:
+        return OrderStatus.pending;
+    }
+  }
   factory SavedOrder.fromJson(Map<String, dynamic> json) {
     return SavedOrder(
       id: json['id']?.toString(),
@@ -190,10 +217,7 @@ class SavedOrder {
       paymentMethod: json['payment_method'],
       tableOrCustomer: json['table_or_customer'] ?? 'Mang về',
       source: _sourceFromDatabase(json['source']),
-      status: OrderStatus.values.firstWhere(
-        (e) => e.name == json['status'],
-        orElse: () => OrderStatus.pending,
-      ),
+      status: _statusFromDatabase(json['status']),
     );
   }
 

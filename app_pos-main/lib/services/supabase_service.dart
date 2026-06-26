@@ -162,6 +162,49 @@ class SupabaseService {
     }
   }
 
+  static Future<SavedOrder?> completePendingOrder(
+    SavedOrder order,
+    String paymentMethod,
+  ) async {
+    if (order.id == null) return null;
+
+    try {
+      final response = await _supabase.rpc(
+        'complete_pending_order',
+        params: {
+          'p_order_id': int.tryParse(order.id!),
+          'p_payment_method': paymentMethod,
+        },
+      );
+
+      if (response is List && response.isNotEmpty) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response.first));
+      }
+      if (response is Map) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response));
+      }
+      return null;
+    } catch (e) {
+      print('Lỗi thanh toán đơn đang chờ: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> cancelPendingOrder(SavedOrder order) async {
+    if (order.id == null) return false;
+
+    try {
+      await _supabase.rpc(
+        'cancel_pending_order',
+        params: {'p_order_id': int.tryParse(order.id!)},
+      );
+      return true;
+    } catch (e) {
+      print('Lỗi hủy đơn đang chờ: $e');
+      return false;
+    }
+  }
+
   static Future<List<SavedOrder>> getPendingOrders() async {
     try {
       final response = await _supabase

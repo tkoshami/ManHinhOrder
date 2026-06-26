@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -47,6 +47,8 @@ class _OrderScreenState extends State<OrderScreen> {
   StateSetter? _pendingSheetState;
 
   StreamSubscription<List<SavedOrder>>? _orderSubscription;
+  bool _hasSyncedInitialOrderStream = false;
+  final Set<String> _notifiedQrOrderIds = <String>{};
 
   void _syncState(VoidCallback fn) {
     setState(fn);
@@ -82,7 +84,11 @@ class _OrderScreenState extends State<OrderScreen> {
       if (!mounted) return;
 
       _syncState(() {
-        _mergePendingOrders(orders, notifyQrOrders: true);
+        _mergePendingOrders(
+          orders,
+          notifyQrOrders: _hasSyncedInitialOrderStream,
+        );
+        _hasSyncedInitialOrderStream = true;
       });
     });
   }
@@ -103,9 +109,16 @@ class _OrderScreenState extends State<OrderScreen> {
 
       globalPendingOrders.add(newOrder);
 
-      if (notifyQrOrders &&
+      final orderId = newOrder.id;
+      final shouldNotify =
+          notifyQrOrders &&
+          orderId != null &&
+          !_notifiedQrOrderIds.contains(orderId) &&
           (newOrder.source == OrderSource.qrCode ||
-              newOrder.source == OrderSource.kiosk)) {
+              newOrder.source == OrderSource.kiosk);
+
+      if (shouldNotify) {
+        _notifiedQrOrderIds.add(orderId);
         _mockPrintBill(newOrder);
       }
     }
@@ -123,6 +136,7 @@ class _OrderScreenState extends State<OrderScreen> {
       SnackBar(
         content: Text('Đơn mới từ khách: ${order.id}. Đang in bill...'),
         backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 5),
         action: SnackBarAction(
           label: 'Xem',
           onPressed: () => _showOrderDetailsDialog(order),
@@ -515,10 +529,11 @@ class _OrderScreenState extends State<OrderScreen> {
                       const SizedBox(height: 8),
                       TextField(
                         controller: receivedController,
-                        onTap: () => receivedController.selection = TextSelection(
-                          baseOffset: 0,
-                          extentOffset: receivedController.text.length,
-                        ),
+                        onTap: () =>
+                            receivedController.selection = TextSelection(
+                              baseOffset: 0,
+                              extentOffset: receivedController.text.length,
+                            ),
                         onChanged: (v) => setDialogState(() {}),
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
@@ -557,31 +572,37 @@ class _OrderScreenState extends State<OrderScreen> {
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
-                        children: [
-                          order.totalAmount,
-                          50000.0,
-                          100000.0,
-                          200000.0,
-                          500000.0,
-                        ]
-                            .where((amt) => amt >= order.totalAmount)
-                            .toSet()
-                            .map((amt) {
-                              return ActionChip(
-                                label: Text(currencyFormat.format(amt)),
-                                onPressed: () {
-                                  final formatted = NumberFormat.decimalPattern('vi_VN').format(amt.toInt());
-                                  receivedController.text = formatted;
-                                  setDialogState(() {});
-                                },
-                                backgroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  side: BorderSide(color: Colors.grey.shade300),
-                                ),
-                              );
-                            })
-                            .toList(),
+                        children:
+                            [
+                                  order.totalAmount,
+                                  50000.0,
+                                  100000.0,
+                                  200000.0,
+                                  500000.0,
+                                ]
+                                .where((amt) => amt >= order.totalAmount)
+                                .toSet()
+                                .map((amt) {
+                                  return ActionChip(
+                                    label: Text(currencyFormat.format(amt)),
+                                    onPressed: () {
+                                      final formatted =
+                                          NumberFormat.decimalPattern(
+                                            'vi_VN',
+                                          ).format(amt.toInt());
+                                      receivedController.text = formatted;
+                                      setDialogState(() {});
+                                    },
+                                    backgroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      side: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                  );
+                                })
+                                .toList(),
                       ),
                       const SizedBox(height: 20),
                       Container(
@@ -590,17 +611,27 @@ class _OrderScreenState extends State<OrderScreen> {
                           vertical: 16,
                         ),
                         decoration: BoxDecoration(
-                          color: isShort ? Colors.red.shade50 : Colors.green.shade50,
+                          color: isShort
+                              ? Colors.red.shade50
+                              : Colors.green.shade50,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: isShort ? Colors.red.shade200 : Colors.green.shade200),
+                          border: Border.all(
+                            color: isShort
+                                ? Colors.red.shade200
+                                : Colors.green.shade200,
+                          ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              isShort ? 'Số tiền còn thiếu:' : 'Tiền thừa trả khách:',
+                              isShort
+                                  ? 'Số tiền còn thiếu:'
+                                  : 'Tiền thừa trả khách:',
                               style: TextStyle(
-                                color: isShort ? Colors.red.shade700 : Colors.green.shade700,
+                                color: isShort
+                                    ? Colors.red.shade700
+                                    : Colors.green.shade700,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
                               ),
@@ -608,7 +639,9 @@ class _OrderScreenState extends State<OrderScreen> {
                             Text(
                               currencyFormat.format(diff),
                               style: TextStyle(
-                                color: isShort ? Colors.red.shade700 : Colors.green.shade700,
+                                color: isShort
+                                    ? Colors.red.shade700
+                                    : Colors.green.shade700,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 24,
                               ),
@@ -656,13 +689,15 @@ class _OrderScreenState extends State<OrderScreen> {
                         ElevatedButton(
                           onPressed:
                               (selectedMethod == 'Tiền mặt' &&
-                                      receivedAmount < order.totalAmount)
-                                  ? null
-                                  : () => _finishPayment(
-                                          order,
-                                          selectedMethod,
-                                          receivedAmount: selectedMethod == 'Tiền mặt' ? receivedAmount : null,
-                                        ),
+                                  receivedAmount < order.totalAmount)
+                              ? null
+                              : () => _finishPayment(
+                                  order,
+                                  selectedMethod,
+                                  receivedAmount: selectedMethod == 'Tiền mặt'
+                                      ? receivedAmount
+                                      : null,
+                                ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green.shade600,
                             padding: const EdgeInsets.symmetric(
@@ -718,15 +753,18 @@ class _OrderScreenState extends State<OrderScreen> {
             children: [
               Icon(
                 icon,
-                color: isSelected ? Colors.green.shade700 : Colors.grey.shade600,
+                color: isSelected
+                    ? Colors.green.shade700
+                    : Colors.grey.shade600,
                 size: 28,
               ),
               const SizedBox(height: 4),
               Text(
                 title,
                 style: TextStyle(
-                  color:
-                      isSelected ? Colors.green.shade700 : Colors.grey.shade600,
+                  color: isSelected
+                      ? Colors.green.shade700
+                      : Colors.grey.shade600,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -774,7 +812,11 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  void _finishPayment(SavedOrder order, String method, {double? receivedAmount}) async {
+  void _finishPayment(
+    SavedOrder order,
+    String method, {
+    double? receivedAmount,
+  }) async {
     Navigator.pop(context);
     if (method == 'Thẻ') {
       showDialog(
@@ -795,32 +837,37 @@ class _OrderScreenState extends State<OrderScreen> {
       if (mounted) Navigator.pop(context);
     }
 
-    final completedOrder = SavedOrder(
-      id: order.id,
-      shiftId: order.shiftId,
-      tableOrCustomer: order.tableOrCustomer,
-      items: order.items,
-      dateTime: DateTime.now(),
-      subtotal: order.subtotal,
-      discountAmount: order.discountAmount,
-      vatRate: order.vatRate,
-      vatAmount: order.vatAmount,
-      totalAmount: order.totalAmount,
-      paymentMethod: method == 'Tiền mặt'
-          ? 'cash'
-          : (method == 'Chuyển khoản' ? 'qr_code' : 'card'),
-      source: order.source,
-      status: OrderStatus.completed,
+    final paymentMethod = method == 'Tiền mặt'
+        ? 'cash'
+        : (method == 'Chuyển khoản' ? 'qr_code' : 'card');
+    final completedOrder = await SupabaseService.completePendingOrder(
+      order,
+      paymentMethod,
     );
 
-    await SupabaseService.saveOrder(completedOrder);
+    if (completedOrder == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Không thể cập nhật trạng thái thanh toán. Vui lòng thử lại.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     _syncState(() {
       globalPendingOrders.removeWhere((o) => o.id == order.id);
       globalCompletedOrders.insert(0, completedOrder);
     });
 
-    _showReceiptDialogForOrder(completedOrder, method, receivedAmount: receivedAmount);
+    _showReceiptDialogForOrder(
+      completedOrder,
+      method,
+      receivedAmount: receivedAmount,
+    );
   }
 
   void _cancelOrder(SavedOrder order) async {
@@ -829,7 +876,7 @@ class _OrderScreenState extends State<OrderScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận hủy đơn'),
         content: Text(
-          'Bạn có chắc chắn muốn hủy đơn hàng tại "${order.tableOrCustomer}" không? Đơn hủy vẫn sẽ được lưu vào lịch sử.',
+          'Bạn có chắc chắn muốn hủy đơn hàng tại "${order.tableOrCustomer}" không? Đơn sẽ được xóa khỏi danh sách chờ.',
         ),
         actions: [
           TextButton(
@@ -845,38 +892,32 @@ class _OrderScreenState extends State<OrderScreen> {
       ),
     );
 
-    if (confirm == true) {
-      final cancelledOrder = SavedOrder(
-        id: order.id,
-        shiftId: order.shiftId,
-        tableOrCustomer: order.tableOrCustomer,
-        items: order.items,
-        dateTime: DateTime.now(),
-        subtotal: order.subtotal,
-        discountAmount: order.discountAmount,
-        vatRate: order.vatRate,
-        vatAmount: order.vatAmount,
-        totalAmount: order.totalAmount,
-        paymentMethod: order.paymentMethod,
-        source: order.source,
-        status: OrderStatus.cancelled,
-      );
+    if (confirm != true) return;
 
-      await SupabaseService.saveOrder(cancelledOrder);
+    final success = await SupabaseService.cancelPendingOrder(order);
+    if (!mounted) return;
 
-      _syncState(() {
-        globalPendingOrders.removeWhere((o) => o.id == order.id);
-        globalCompletedOrders.insert(0, cancelledOrder);
-      });
-
-      if (!mounted) return;
+    if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Đã hủy đơn hàng và lưu vào lịch sử'),
+          content: Text('Không thể hủy đơn. Vui lòng thử lại.'),
           backgroundColor: Colors.red,
         ),
       );
+      return;
     }
+
+    _syncState(() {
+      globalPendingOrders.removeWhere((o) => o.id == order.id);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Đã hủy đơn và xóa khỏi danh sách chờ'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   void _showOrderDetailsDialog(SavedOrder order) {
@@ -975,7 +1016,11 @@ class _OrderScreenState extends State<OrderScreen> {
     ),
   );
 
-  void _showReceiptDialogForOrder(SavedOrder order, String paymentMethod, {double? receivedAmount}) {
+  void _showReceiptDialogForOrder(
+    SavedOrder order,
+    String paymentMethod, {
+    double? receivedAmount,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1003,21 +1048,74 @@ class _OrderScreenState extends State<OrderScreen> {
                   style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 16),
-                Text('Mã đơn: ${order.id}', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                Text(
+                  'Mã đơn: ${order.id}',
+                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                ),
                 Text(
                   'Ngày: ${DateFormat('dd/MM/yyyy HH:mm').format(order.dateTime)}',
                   style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
-                Text('PTTT: $paymentMethod', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                Text(
+                  'PTTT: $paymentMethod',
+                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                ),
                 const SizedBox(height: 20),
                 const Divider(color: Colors.brown, thickness: 0.2),
                 Row(
                   children: const [
-                    SizedBox(width: 30, child: Text('STT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                    Expanded(child: Text('Tên món', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                    SizedBox(width: 80, child: Text('Đơn giá', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                    SizedBox(width: 40, child: Text('SL', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                    SizedBox(width: 80, child: Text('T.Tiền', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    SizedBox(
+                      width: 30,
+                      child: Text(
+                        'STT',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Tên món',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        'Đơn giá',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 40,
+                      child: Text(
+                        'SL',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        'T.Tiền',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 const Divider(color: Colors.brown, thickness: 0.2),
@@ -1031,16 +1129,28 @@ class _OrderScreenState extends State<OrderScreen> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(width: 30, child: Text('${idx + 1}', style: const TextStyle(fontSize: 13))),
+                            SizedBox(
+                              width: 30,
+                              child: Text(
+                                '${idx + 1}',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(item.product.name, style: const TextStyle(fontSize: 13)),
+                                  Text(
+                                    item.product.name,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
                                   if (item.discountPercent > 0)
                                     Text(
                                       '-${item.discountPercent.toStringAsFixed(0)}%',
-                                      style: const TextStyle(color: Colors.red, fontSize: 11),
+                                      style: const TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 11,
+                                      ),
                                     ),
                                 ],
                               ),
@@ -1080,7 +1190,10 @@ class _OrderScreenState extends State<OrderScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Tạm tính:', style: TextStyle(fontSize: 14)),
-                    Text(currencyFormat.format(order.subtotal), style: const TextStyle(fontSize: 14)),
+                    Text(
+                      currencyFormat.format(order.subtotal),
+                      style: const TextStyle(fontSize: 14),
+                    ),
                   ],
                 ),
                 if (order.vatRate > 0)
@@ -1089,8 +1202,14 @@ class _OrderScreenState extends State<OrderScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('VAT (${order.vatRate.toStringAsFixed(0)}%):', style: const TextStyle(fontSize: 14)),
-                        Text(currencyFormat.format(order.vatAmount), style: const TextStyle(fontSize: 14)),
+                        Text(
+                          'VAT (${order.vatRate.toStringAsFixed(0)}%):',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        Text(
+                          currencyFormat.format(order.vatAmount),
+                          style: const TextStyle(fontSize: 14),
+                        ),
                       ],
                     ),
                   ),
@@ -1101,7 +1220,10 @@ class _OrderScreenState extends State<OrderScreen> {
                   children: [
                     const Text(
                       'TỔNG CỘNG:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                     ),
                     Text(
                       currencyFormat.format(order.totalAmount),
@@ -1119,7 +1241,10 @@ class _OrderScreenState extends State<OrderScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Tiền nhận:', style: TextStyle(fontSize: 14)),
-                      Text(currencyFormat.format(receivedAmount), style: const TextStyle(fontSize: 14)),
+                      Text(
+                        currencyFormat.format(receivedAmount),
+                        style: const TextStyle(fontSize: 14),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -1128,7 +1253,9 @@ class _OrderScreenState extends State<OrderScreen> {
                     children: [
                       const Text('Tiền thừa:', style: TextStyle(fontSize: 14)),
                       Text(
-                        currencyFormat.format(receivedAmount - order.totalAmount),
+                        currencyFormat.format(
+                          receivedAmount - order.totalAmount,
+                        ),
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -1161,10 +1288,16 @@ class _OrderScreenState extends State<OrderScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 12,
+                        ),
                         elevation: 0,
                       ),
-                      child: const Text('ĐÓNG', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'ĐÓNG',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
@@ -3293,7 +3426,10 @@ class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
 
 class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (newValue.text.isEmpty) {
       return newValue.copyWith(text: '');
     }
