@@ -1,14 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/constants.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
-import 'package:pos_fnb/screens/login_screen.dart';
 import 'package:pos_fnb/screens/profile_screen.dart';
 import 'package:pos_fnb/screens/settings_screen.dart';
 import 'package:pos_fnb/widgets/vietqr_display.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
+import 'package:pos_fnb/screens/qr_generator_screen.dart';
 
 class OrderScreen extends StatefulWidget {
   final UserAccount user;
@@ -33,7 +34,7 @@ class _OrderScreenState extends State<OrderScreen> {
   String _selectedOrderType = appOrderTypes[0];
   final List<String> _orderTypes = appOrderTypes;
   String _selectedCategory = appCategories[0];
-  final List<String> _categories = appCategories;
+  List<String> _categories = List.from(appCategories);
 
   // VAT: lưu % dạng số (vd: 10 = 10%), mặc định 8
   double _vatPercent = 8;
@@ -45,6 +46,8 @@ class _OrderScreenState extends State<OrderScreen> {
   StateSetter? _sheetState;
   StateSetter? _pendingSheetState;
 
+  StreamSubscription<List<SavedOrder>>? _orderSubscription;
+
   void _syncState(VoidCallback fn) {
     setState(fn);
     _sheetState?.call(() {});
@@ -55,13 +58,130 @@ class _OrderScreenState extends State<OrderScreen> {
   void initState() {
     super.initState();
     _loadProducts();
+    _loadPendingOrders();
+    _startListeningToOrders();
+  }
+
+  @override
+  void dispose() {
+    _orderSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadPendingOrders() async {
+    final orders = await SupabaseService.getPendingOrders();
+    if (!mounted) return;
+
+    _syncState(() {
+      _mergePendingOrders(orders);
+    });
+  }
+
+  void _startListeningToOrders() {
+    _orderSubscription = SupabaseService.subscribeToOrders().listen((orders) {
+      if (!mounted) return;
+
+      _syncState(() {
+        _mergePendingOrders(orders, notifyQrOrders: true);
+      });
+    });
+  }
+
+  void _mergePendingOrders(
+    List<SavedOrder> orders, {
+    bool notifyQrOrders = false,
+  }) {
+    for (final newOrder in orders) {
+      final existingIndex = globalPendingOrders.indexWhere(
+        (order) => order.id == newOrder.id,
+      );
+
+      if (existingIndex >= 0) {
+        globalPendingOrders[existingIndex] = newOrder;
+        continue;
+      }
+
+      globalPendingOrders.add(newOrder);
+
+      if (notifyQrOrders &&
+          (newOrder.source == OrderSource.qrCode ||
+              newOrder.source == OrderSource.kiosk)) {
+        _mockPrintBill(newOrder);
+      }
+    }
+  }
+
+  void _mockPrintBill(SavedOrder order) {
+    debugPrint('--- AUTO PRINTING BILL ---');
+    debugPrint('Order ID: ${order.id}');
+    debugPrint('Customer: ${order.tableOrCustomer}');
+    debugPrint('Items: ${order.items.length}');
+    debugPrint('Total: ${order.totalAmount}');
+    debugPrint('--------------------------');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đơn mới từ khách: ${order.id}. Đang in bill...'),
+        backgroundColor: Colors.blue,
+        action: SnackBarAction(
+          label: 'Xem',
+          onPressed: () => _showOrderDetailsDialog(order),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadProducts() async {
     setState(() => _isLoadingProducts = true);
+
     final products = await SupabaseService.getProducts();
+    final productCategories = await SupabaseService.getProductCategories();
+
+    if (!mounted) return;
+
+    final loadedProducts = products.isEmpty
+        ? List<Product>.from(defaultProducts)
+        : products;
+    final loadedCategories = productCategories
+        .map((category) => category.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+    final categoryNames = loadedCategories.isEmpty
+        ? List<String>.from(appCategories)
+        : <String>[appCategories[0], ...loadedCategories];
+    final categoryMap = {
+      for (final category in productCategories) category.id: category.name,
+    };
+    final singleCategoryName = loadedCategories.length == 1
+        ? loadedCategories.first
+        : null;
+
     setState(() {
-      _allProducts = products.isEmpty ? List.from(defaultProducts) : products;
+      _categories = categoryNames;
+      _selectedCategory = _categories.first;
+      _allProducts = loadedProducts.map((product) {
+        final categoryFromId = product.categoryId == null
+            ? null
+            : categoryMap[product.categoryId];
+        final categoryName =
+            categoryFromId ??
+            (product.categoryName.trim().isNotEmpty &&
+                    product.categoryName != 'Khác'
+                ? product.categoryName
+                : singleCategoryName ?? product.categoryName);
+
+        if (categoryName == product.categoryName) return product;
+
+        return Product(
+          id: product.id,
+          categoryId: product.categoryId,
+          name: product.name,
+          price: product.price,
+          imageUrl: product.imageUrl,
+          categoryName: categoryName,
+          isAvailable: product.isAvailable,
+        );
+      }).toList();
       _filteredProducts = _allProducts;
       _isLoadingProducts = false;
     });
@@ -90,7 +210,7 @@ class _OrderScreenState extends State<OrderScreen> {
           query.toLowerCase(),
         );
         final matchesCategory =
-            _selectedCategory == appCategories[0] ||
+            _selectedCategory == _categories[0] ||
             p.categoryName == _selectedCategory;
         return matchesSearch && matchesCategory;
       }).toList();
@@ -162,7 +282,7 @@ class _OrderScreenState extends State<OrderScreen> {
       _vatPercent = 8;
       _currentPendingOrder = null;
       _selectedOrderType = appOrderTypes[0];
-      _selectedCategory = appCategories[0];
+      _selectedCategory = _categories[0];
       _searchController.clear();
       _filteredProducts = _allProducts;
     });
@@ -279,373 +399,382 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   void _completeOrder(SavedOrder order) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Center(
-          child: Text(
-            'Chọn phương thức thanh toán',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.money, color: Colors.green),
-              title: const Text('Tiền mặt'),
-              onTap: () {
-                Navigator.pop(context);
-                _showCashPaymentDialog(order);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.account_balance, color: Colors.blue),
-              title: const Text('Chuyển khoản'),
-              onTap: () {
-                Navigator.pop(context);
-                _showVietQRDialog(order);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.credit_card, color: Colors.orange),
-              title: const Text('Thẻ'),
-              onTap: () {
-                Navigator.pop(context);
-                _finishPayment(order, 'Thẻ');
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-        ],
-      ),
+    String selectedMethod = 'Tiền mặt';
+    final TextEditingController receivedController = TextEditingController(
+      text: '0',
     );
-  }
-
-  void _showVietQRDialog(SavedOrder order) {
-    // Lấy mã đơn hàng làm nội dung chuyển khoản
-    final String addInfo = order.id.toString();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Center(
-          child: Text(
-            'QUÉT MÃ VIETQR',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        content: VietQRDisplay(
-          amount: order.totalAmount.toInt(),
-          description: addInfo,
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('HỦY'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: () => _finishPayment(order, 'Chuyển khoản'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                    ),
-                    child: const Text(
-                      'XÁC NHẬN ĐÃ THU TIỀN',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCashPaymentDialog(SavedOrder order) {
-    String receivedStr = '0';
+    int totalQty = order.items.fold(0, (sum, item) => sum + item.quantity);
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final double receivedAmount = double.tryParse(receivedStr) ?? 0;
-          final double change =
-              receivedAmount > order.totalAmount
-                  ? receivedAmount - order.totalAmount
-                  : 0;
+          final double receivedAmount =
+              double.tryParse(receivedController.text.replaceAll('.', '')) ?? 0;
+          final bool isShort = receivedAmount < order.totalAmount;
+          final double diff = (receivedAmount - order.totalAmount).abs();
 
-          Widget buildNumBtn(
-            String text, {
-            VoidCallback? onPressed,
-            Color? color,
-          }) {
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: ElevatedButton(
-                  onPressed:
-                      onPressed ??
-                      () {
-                        setDialogState(() {
-                          if (receivedStr == '0') {
-                            receivedStr = text;
-                          } else {
-                            receivedStr += text;
-                          }
-                        });
-                      },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: color ?? Colors.grey[200],
-                    foregroundColor: Colors.black87,
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    text,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }
-
-          return AlertDialog(
+          return Dialog(
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
             ),
-            title: Column(
-              children: [
-                const Text(
-                  'THANH TOÁN TIỀN MẶT',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Bàn/Khách: ${order.tableOrCustomer}',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-              ],
-            ),
-            content: SizedBox(
-              width: 450,
-              child: SingleChildScrollView(
+            child: SingleChildScrollView(
+              child: Container(
+                width: 500,
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                    const Text(
+                      'Chọn phương thức thanh toán',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    child: Column(
+                    const SizedBox(height: 20),
+                    Row(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Tổng cộng:',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                            Text(
-                              currencyFormat.format(order.totalAmount),
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red,
-                              ),
-                            ),
-                          ],
+                        _paymentMethodTab(
+                          'Tiền mặt',
+                          Icons.payments_outlined,
+                          selectedMethod == 'Tiền mặt',
+                          () =>
+                              setDialogState(() => selectedMethod = 'Tiền mặt'),
                         ),
-                        const Divider(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Khách đưa:',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                            Text(
-                              currencyFormat.format(receivedAmount),
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ],
+                        const SizedBox(width: 8),
+                        _paymentMethodTab(
+                          'Chuyển khoản',
+                          Icons.account_balance_outlined,
+                          selectedMethod == 'Chuyển khoản',
+                          () => setDialogState(
+                            () => selectedMethod = 'Chuyển khoản',
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Tiền thừa:',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                            Text(
-                              currencyFormat.format(change),
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ],
+                        const SizedBox(width: 8),
+                        _paymentMethodTab(
+                          'Thẻ',
+                          Icons.credit_card_outlined,
+                          selectedMethod == 'Thẻ',
+                          () => setDialogState(() => selectedMethod = 'Thẻ'),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          buildNumBtn('7'),
-                          buildNumBtn('8'),
-                          buildNumBtn('9'),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          buildNumBtn('4'),
-                          buildNumBtn('5'),
-                          buildNumBtn('6'),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          buildNumBtn('1'),
-                          buildNumBtn('2'),
-                          buildNumBtn('3'),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          buildNumBtn('0'),
-                          buildNumBtn('000'),
-                          buildNumBtn(
-                            'C',
-                            color: Colors.red[100],
-                            onPressed: () {
-                              setDialogState(() => receivedStr = '0');
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Gợi ý tiền mặt:',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      [order.totalAmount, 'Đúng số tiền'],
-                      [10000.0, '10k'],
-                      [20000.0, '20k'],
-                      [50000.0, '50k'],
-                      [100000.0, '100k'],
-                      [200000.0, '200k'],
-                      [500000.0, '500k'],
-                    ].map((val) {
-                      return ActionChip(
-                        label: Text(val[1] as String),
-                        onPressed: () {
-                          setDialogState(() {
-                            receivedStr = (val[0] as double).toStringAsFixed(0);
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text(
-                          'QUAY LẠI',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                    const SizedBox(height: 24),
+                    _paymentInfoRow('Tổng số lượng món:', '$totalQty món'),
+                    _paymentInfoRow(
+                      'Tạm tính:',
+                      currencyFormat.format(order.subtotal),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed:
-                            receivedAmount >= order.totalAmount
-                                ? () => _finishPayment(order, 'Tiền mặt')
-                                : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                    if (order.vatRate > 0)
+                      _paymentInfoRow(
+                        'Thuế VAT (${order.vatRate.toStringAsFixed(0)}%):',
+                        currencyFormat.format(order.vatAmount),
+                      ),
+                    if (order.discountAmount > 0)
+                      _paymentInfoRow(
+                        'Giảm tiền lẻ:',
+                        currencyFormat.format(order.discountAmount),
+                        isGrey: true,
+                        subtitle: '(Khi thanh toán tiền mặt)',
+                      ),
+                    const Divider(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Thực thu:',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        child: const Text(
-                          'XÁC NHẬN ĐÃ THU TIỀN',
+                        Text(
+                          currencyFormat.format(order.totalAmount),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    if (selectedMethod == 'Tiền mặt') ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Tiền khách đưa',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Colors.brown.shade700,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: receivedController,
+                        onTap: () => receivedController.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: receivedController.text.length,
+                        ),
+                        onChanged: (v) => setDialogState(() {}),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          _ThousandsSeparatorInputFormatter(),
+                        ],
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(
+                            Icons.payments,
+                            color: Colors.green.shade600,
+                          ),
+                          suffixText: '₫',
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.brown.shade300,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.brown.shade700,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          order.totalAmount,
+                          50000.0,
+                          100000.0,
+                          200000.0,
+                          500000.0,
+                        ]
+                            .where((amt) => amt >= order.totalAmount)
+                            .toSet()
+                            .map((amt) {
+                              return ActionChip(
+                                label: Text(currencyFormat.format(amt)),
+                                onPressed: () {
+                                  final formatted = NumberFormat.decimalPattern('vi_VN').format(amt.toInt());
+                                  receivedController.text = formatted;
+                                  setDialogState(() {});
+                                },
+                                backgroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: BorderSide(color: Colors.grey.shade300),
+                                ),
+                              );
+                            })
+                            .toList(),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isShort ? Colors.red.shade50 : Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isShort ? Colors.red.shade200 : Colors.green.shade200),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              isShort ? 'Số tiền còn thiếu:' : 'Tiền thừa trả khách:',
+                              style: TextStyle(
+                                color: isShort ? Colors.red.shade700 : Colors.green.shade700,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              currencyFormat.format(diff),
+                              style: TextStyle(
+                                color: isShort ? Colors.red.shade700 : Colors.green.shade700,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 24,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (selectedMethod == 'Chuyển khoản') ...[
+                      const SizedBox(height: 10),
+                      VietQRDisplay(
+                        amount: order.totalAmount.toInt(),
+                        description: order.id ?? '',
+                      ),
+                    ],
+                    if (selectedMethod == 'Thẻ') ...[
+                      const SizedBox(height: 40),
+                      Icon(
+                        Icons.contactless,
+                        size: 100,
+                        color: Colors.blue.shade600,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Vui lòng quẹt hoặc chạm thẻ',
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                    const SizedBox(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(
+                            'Hủy',
+                            style: TextStyle(
+                              color: Colors.brown.shade700,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 24),
+                        ElevatedButton(
+                          onPressed:
+                              (selectedMethod == 'Tiền mặt' &&
+                                      receivedAmount < order.totalAmount)
+                                  ? null
+                                  : () => _finishPayment(
+                                          order,
+                                          selectedMethod,
+                                          receivedAmount: selectedMethod == 'Tiền mặt' ? receivedAmount : null,
+                                        ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade600,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 40,
+                              vertical: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                          child: const Text(
+                            'THANH TOÁN',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           );
         },
       ),
     );
   }
 
-  void _finishPayment(SavedOrder order, String method) async {
+  Widget _paymentMethodTab(
+    String title,
+    IconData icon,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.green.shade50 : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? Colors.green.shade400 : Colors.grey.shade300,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.green.shade700 : Colors.grey.shade600,
+                size: 28,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: TextStyle(
+                  color:
+                      isSelected ? Colors.green.shade700 : Colors.grey.shade600,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _paymentInfoRow(
+    String label,
+    String value, {
+    bool isGrey = false,
+    String? subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isGrey ? Colors.grey.shade600 : Colors.black87,
+                ),
+              ),
+              if (subtitle != null)
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+            ],
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _finishPayment(SavedOrder order, String method, {double? receivedAmount}) async {
     Navigator.pop(context);
     if (method == 'Thẻ') {
       showDialog(
@@ -691,7 +820,7 @@ class _OrderScreenState extends State<OrderScreen> {
       globalCompletedOrders.insert(0, completedOrder);
     });
 
-    _showReceiptDialogForOrder(completedOrder, method);
+    _showReceiptDialogForOrder(completedOrder, method, receivedAmount: receivedAmount);
   }
 
   void _cancelOrder(SavedOrder order) async {
@@ -846,78 +975,196 @@ class _OrderScreenState extends State<OrderScreen> {
     ),
   );
 
-  void _showReceiptDialogForOrder(SavedOrder order, String paymentMethod) {
+  void _showReceiptDialogForOrder(SavedOrder order, String paymentMethod, {double? receivedAmount}) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Center(child: Text('HÓA ĐƠN')),
-        content: SizedBox(
-          width: 400,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: const Color(0xFFF5EFEB),
+        child: Container(
+          width: 500,
+          padding: const EdgeInsets.all(24),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Loại: ${order.tableOrCustomer}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const Divider(),
-                Text('Mã đơn: ${order.id}'),
-                Text(
-                  'Ngày: ${DateFormat('dd/MM/yyyy HH:mm').format(order.dateTime)}',
-                ),
-                Text('PTTT: $paymentMethod'),
-                const Divider(),
-                ...order.items.map(
-                  (item) => Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.discountPercent > 0
-                              ? '${item.product.name} x${item.quantity} (-${item.discountPercent.toStringAsFixed(0)}%)'
-                              : '${item.product.name} x${item.quantity}',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
-                      Text(currencyFormat.format(item.total)),
-                    ],
+                const Text(
+                  'HÓA ĐƠN',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.2,
                   ),
                 ),
-                const Divider(),
+                const SizedBox(height: 8),
+                Text(
+                  'Loại: ${order.tableOrCustomer}',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 16),
+                Text('Mã đơn: ${order.id}', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                Text(
+                  'Ngày: ${DateFormat('dd/MM/yyyy HH:mm').format(order.dateTime)}',
+                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                ),
+                Text('PTTT: $paymentMethod', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                const SizedBox(height: 20),
+                const Divider(color: Colors.brown, thickness: 0.2),
+                Row(
+                  children: const [
+                    SizedBox(width: 30, child: Text('STT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    Expanded(child: Text('Tên món', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    SizedBox(width: 80, child: Text('Đơn giá', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    SizedBox(width: 40, child: Text('SL', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    SizedBox(width: 80, child: Text('T.Tiền', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                  ],
+                ),
+                const Divider(color: Colors.brown, thickness: 0.2),
+                ...order.items.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  CartItem item = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(width: 30, child: Text('${idx + 1}', style: const TextStyle(fontSize: 13))),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(item.product.name, style: const TextStyle(fontSize: 13)),
+                                  if (item.discountPercent > 0)
+                                    Text(
+                                      '-${item.discountPercent.toStringAsFixed(0)}%',
+                                      style: const TextStyle(color: Colors.red, fontSize: 11),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(
+                              width: 80,
+                              child: Text(
+                                currencyFormat.format(item.product.price),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 40,
+                              child: Text(
+                                'x${item.quantity}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 80,
+                              child: Text(
+                                currencyFormat.format(item.total),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(color: Colors.brown, thickness: 0.1),
+                      ],
+                    ),
+                  );
+                }),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Tạm tính:'),
-                    Text(currencyFormat.format(order.subtotal)),
+                    const Text('Tạm tính:', style: TextStyle(fontSize: 14)),
+                    Text(currencyFormat.format(order.subtotal), style: const TextStyle(fontSize: 14)),
                   ],
                 ),
                 if (order.vatRate > 0)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('VAT (${order.vatRate.toStringAsFixed(0)}%):'),
-                      Text(
-                        currencyFormat.format(order.vatAmount),
-                        style: const TextStyle(color: Colors.blue),
-                      ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('VAT (${order.vatRate.toStringAsFixed(0)}%):', style: const TextStyle(fontSize: 14)),
+                        Text(currencyFormat.format(order.vatAmount), style: const TextStyle(fontSize: 14)),
+                      ],
+                    ),
                   ),
-                const Divider(),
+                const SizedBox(height: 8),
+                const Divider(color: Colors.brown, thickness: 0.2),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
                       'TỔNG CỘNG:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                     ),
                     Text(
                       currencyFormat.format(order.totalAmount),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.red,
+                        fontSize: 20,
                       ),
+                    ),
+                  ],
+                ),
+                const Divider(color: Colors.brown, thickness: 0.2),
+                if (receivedAmount != null) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Tiền nhận:', style: TextStyle(fontSize: 14)),
+                      Text(currencyFormat.format(receivedAmount), style: const TextStyle(fontSize: 14)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Tiền thừa:', style: TextStyle(fontSize: 14)),
+                      Text(
+                        currencyFormat.format(receivedAmount - order.totalAmount),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => debugPrint('In...'),
+                      child: const Text(
+                        'IN HÓA ĐƠN',
+                        style: TextStyle(color: Colors.brown, fontSize: 16),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _resetOrder();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                        elevation: 0,
+                      ),
+                      child: const Text('ĐÓNG', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -925,19 +1172,6 @@ class _OrderScreenState extends State<OrderScreen> {
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => debugPrint('In...'),
-            child: const Text('IN HÓA ĐƠN'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _resetOrder();
-            },
-            child: const Text('ĐÓNG'),
-          ),
-        ],
       ),
     );
   }
@@ -1234,7 +1468,10 @@ class _OrderScreenState extends State<OrderScreen> {
                         width: 80,
                         child: TextField(
                           textAlign: TextAlign.center,
-                          keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            signed: false,
+                            decimal: false,
+                          ),
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
@@ -1473,7 +1710,10 @@ class _OrderScreenState extends State<OrderScreen> {
                         flex: 2,
                         child: TextField(
                           controller: priceController,
-                          keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            signed: false,
+                            decimal: false,
+                          ),
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
@@ -1879,79 +2119,82 @@ class _OrderScreenState extends State<OrderScreen> {
                   ),
                 )
               : GridView.builder(
-            padding: const EdgeInsets.all(8),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.9,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: _filteredProducts.length,
-            itemBuilder: (context, index) {
-              final product = _filteredProducts[index];
-              final bool isInCart = _cart.any((item) => item.product.id == product.id);
+                  padding: const EdgeInsets.all(8),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.9,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: _filteredProducts.length,
+                  itemBuilder: (context, index) {
+                    final product = _filteredProducts[index];
+                    final bool isInCart = _cart.any(
+                      (item) => item.product.id == product.id,
+                    );
 
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () => _showDiscountDialog(context, product),
-                  child: Stack(
-                    children: [
-                      Opacity(
-                        opacity: isInCart ? 0.4 : 1.0,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    return Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => _showDiscountDialog(context, product),
+                        child: Stack(
                           children: [
-                            Expanded(
-                              child: Image.network(
-                                product.imageUrl,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(8.0),
+                            Opacity(
+                              opacity: isInCart ? 0.4 : 1.0,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    product.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                                  Expanded(
+                                    child: Image.network(
+                                      product.imageUrl,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
                                     ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    currencyFormat.format(product.price),
-                                    style: const TextStyle(
-                                      color: Colors.orange,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          product.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          currencyFormat.format(product.price),
+                                          style: const TextStyle(
+                                            color: Colors.orange,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
+                            if (isInCart)
+                              const Center(
+                                child: Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: 40,
+                                ),
+                              ),
                           ],
                         ),
                       ),
-                      if (isInCart)
-                        const Center(
-                          child: Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 40,
-                          ),
-                        ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
         Container(
           padding: const EdgeInsets.all(12),
@@ -2043,15 +2286,21 @@ class _OrderScreenState extends State<OrderScreen> {
               } else if (value == 'settings') {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
+                );
+              } else if (value == 'qr_gen') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const QrGeneratorScreen(),
+                  ),
                 );
               } else if (value == 'logout') {
                 await SupabaseService.signOut();
                 if (context.mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
+                  Navigator.pushReplacementNamed(context, '/');
                 }
               }
             },
@@ -2063,13 +2312,16 @@ class _OrderScreenState extends State<OrderScreen> {
                     CircleAvatar(
                       radius: 20,
                       backgroundColor: Colors.orange.shade100,
-                      backgroundImage: widget.user.avatarUrl != null 
-                          ? NetworkImage(widget.user.avatarUrl!) 
+                      backgroundImage: widget.user.avatarUrl != null
+                          ? NetworkImage(widget.user.avatarUrl!)
                           : null,
                       child: widget.user.avatarUrl == null
                           ? Text(
                               widget.user.name.substring(0, 1).toUpperCase(),
-                              style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
+                              ),
                             )
                           : null,
                     ),
@@ -2081,12 +2333,18 @@ class _OrderScreenState extends State<OrderScreen> {
                         children: [
                           Text(
                             widget.user.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             _getRoleName(widget.user.role),
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
@@ -2113,16 +2371,34 @@ class _OrderScreenState extends State<OrderScreen> {
                         color: Colors.red.shade50,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.logout, color: Colors.red.shade600, size: 18),
+                      child: Icon(
+                        Icons.logout,
+                        color: Colors.red.shade600,
+                        size: 18,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     const Text(
                       'Đăng xuất',
-                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600, fontSize: 14),
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
               ),
+              if (isAdmin) ...[
+                const PopupMenuDivider(height: 1),
+                PopupMenuItem(
+                  value: 'qr_gen',
+                  child: ListTile(
+                    leading: const Icon(Icons.qr_code),
+                    title: const Text('Tạo QR Menu'),
+                  ),
+                ),
+              ],
             ],
             child: Padding(
               padding: const EdgeInsets.only(right: 15),
@@ -2140,8 +2416,8 @@ class _OrderScreenState extends State<OrderScreen> {
                 ),
                 child: CircleAvatar(
                   backgroundColor: Colors.white,
-                  backgroundImage: widget.user.avatarUrl != null 
-                      ? NetworkImage(widget.user.avatarUrl!) 
+                  backgroundImage: widget.user.avatarUrl != null
+                      ? NetworkImage(widget.user.avatarUrl!)
                       : null,
                   child: widget.user.avatarUrl == null
                       ? Text(
@@ -2248,111 +2524,130 @@ class _OrderScreenState extends State<OrderScreen> {
                         child: _isLoadingProducts
                             ? const Center(child: CircularProgressIndicator())
                             : (_filteredProducts.isEmpty
-                                ? const Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.search_off,
-                                          size: 80,
-                                          color: Colors.grey,
-                                        ),
-                                        SizedBox(height: 16),
-                                        Text(
-                                          'Không tìm thấy món nào phù hợp',
-                                          style: TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 18,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : GridView.builder(
-                                padding: const EdgeInsets.all(8),
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 5,
-                                      childAspectRatio: 0.8,
-                                      crossAxisSpacing: 10,
-                                      mainAxisSpacing: 10,
-                                    ),
-                                itemCount: _filteredProducts.length,
-                                itemBuilder: (context, index) {
-                                  final product = _filteredProducts[index];
-                                  final bool isInCart = _cart.any((item) => item.product.id == product.id);
-
-                                  return Card(
-                                    clipBehavior: Clip.antiAlias,
-                                    child: InkWell(
-                                      onTap: () =>
-                                          _showDiscountDialog(context, product),
-                                      child: Stack(
+                                  ? const Center(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
-                                          Opacity(
-                                            opacity: isInCart ? 0.4 : 1.0,
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                          Icon(
+                                            Icons.search_off,
+                                            size: 80,
+                                            color: Colors.grey,
+                                          ),
+                                          SizedBox(height: 16),
+                                          Text(
+                                            'Không tìm thấy món nào phù hợp',
+                                            style: TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 18,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : GridView.builder(
+                                      padding: const EdgeInsets.all(8),
+                                      gridDelegate:
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 5,
+                                            childAspectRatio: 0.8,
+                                            crossAxisSpacing: 10,
+                                            mainAxisSpacing: 10,
+                                          ),
+                                      itemCount: _filteredProducts.length,
+                                      itemBuilder: (context, index) {
+                                        final product =
+                                            _filteredProducts[index];
+                                        final bool isInCart = _cart.any(
+                                          (item) =>
+                                              item.product.id == product.id,
+                                        );
+
+                                        return Card(
+                                          clipBehavior: Clip.antiAlias,
+                                          child: InkWell(
+                                            onTap: () => _showDiscountDialog(
+                                              context,
+                                              product,
+                                            ),
+                                            child: Stack(
                                               children: [
-                                                Expanded(
-                                                  child: Image.network(
-                                                    product.imageUrl,
-                                                    fit: BoxFit.cover,
-                                                    width: double.infinity,
-                                                  ),
-                                                ),
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.all(8),
+                                                Opacity(
+                                                  opacity: isInCart ? 0.4 : 1.0,
                                                   child: Column(
                                                     crossAxisAlignment:
-                                                        CrossAxisAlignment.start,
+                                                        CrossAxisAlignment
+                                                            .start,
                                                     children: [
-                                                      Text(
-                                                        product.name,
-                                                        style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 16,
+                                                      Expanded(
+                                                        child: Image.network(
+                                                          product.imageUrl,
+                                                          fit: BoxFit.cover,
+                                                          width:
+                                                              double.infinity,
                                                         ),
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
                                                       ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        currencyFormat.format(
-                                                          product.price,
-                                                        ),
-                                                        style: const TextStyle(
-                                                          color: Colors.orange,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 18,
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              8,
+                                                            ),
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(
+                                                              product.name,
+                                                              style: const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 16,
+                                                              ),
+                                                              maxLines: 2,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 4,
+                                                            ),
+                                                            Text(
+                                                              currencyFormat
+                                                                  .format(
+                                                                    product
+                                                                        .price,
+                                                                  ),
+                                                              style: const TextStyle(
+                                                                color: Colors
+                                                                    .orange,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 18,
+                                                              ),
+                                                            ),
+                                                          ],
                                                         ),
                                                       ),
                                                     ],
                                                   ),
                                                 ),
+                                                if (isInCart)
+                                                  const Center(
+                                                    child: Icon(
+                                                      Icons.check_circle,
+                                                      color: Colors.green,
+                                                      size: 48,
+                                                    ),
+                                                  ),
                                               ],
                                             ),
                                           ),
-                                          if (isInCart)
-                                            const Center(
-                                              child: Icon(
-                                                Icons.check_circle,
-                                                color: Colors.green,
-                                                size: 48,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              )),
+                                        );
+                                      },
+                                    )),
                       ),
                     ],
                   ),
@@ -2454,7 +2749,10 @@ class _OrderScreenState extends State<OrderScreen> {
                     final item = _cart[index];
                     return ListTile(
                       leading: IconButton(
-                        icon: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
+                        icon: const Icon(
+                          Icons.delete_sweep_outlined,
+                          color: Colors.red,
+                        ),
                         onPressed: () {
                           _syncState(() => _cart.removeAt(index));
                         },
@@ -2510,7 +2808,9 @@ class _OrderScreenState extends State<OrderScreen> {
                             onPressed: () => _updateQuantity(index, -1),
                           ),
                           _CartItemQuantityInput(
-                            key: ValueKey('cart_qty_${item.product.id}_${item.discountPercent}_${item.note}'),
+                            key: ValueKey(
+                              'cart_qty_${item.product.id}_${item.discountPercent}_${item.note}',
+                            ),
                             quantity: item.quantity,
                             onChanged: (val) {
                               _syncState(() {
@@ -2580,16 +2880,17 @@ class _OrderScreenState extends State<OrderScreen> {
                   ),
                   isAdmin
                       ? _VATInput(
-                        vatPercent: _vatPercent,
-                        onChanged: (val) => _syncState(() => _vatPercent = val),
-                      )
+                          vatPercent: _vatPercent,
+                          onChanged: (val) =>
+                              _syncState(() => _vatPercent = val),
+                        )
                       : Text(
-                        '${_vatPercent.toStringAsFixed(0)}%',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          '${_vatPercent.toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
                 ],
               ),
               Row(
@@ -2624,85 +2925,203 @@ class _OrderScreenState extends State<OrderScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  if (!isUser) ...[
+              if (isUser) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _cart.isEmpty
+                        ? null
+                        : () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Xác nhận đặt món'),
+                                content: const Text(
+                                  'Gửi đơn hàng này cho Cashier?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Hủy'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        _finishStaffOrder(context, 'Đặt món'),
+                                    child: const Text('XÁC NHẬN'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.send, color: Colors.white),
+                    label: const Text(
+                      'GỬI ĐƠN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ] else if (!canCheckout) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _cart.isEmpty
+                        ? null
+                        : () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Xác nhận đặt món'),
+                                content: const Text(
+                                  'Gửi đơn hàng này cho Cashier?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Hủy'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        _finishStaffOrder(context, 'Đặt món'),
+                                    child: const Text('XÁC NHẬN'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                    icon: const Icon(
+                      Icons.restaurant_menu,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      'ĐẶT MÓN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Row(
+                  children: [
                     Expanded(
                       flex: 1,
-                      child: OutlinedButton(
+                      child: OutlinedButton.icon(
                         onPressed: _clearCart,
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          'XÓA',
+                          style: TextStyle(color: Colors.red, fontSize: 13),
+                        ),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           side: const BorderSide(color: Colors.red),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'XÓA GIỎ',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                  ],
-                  Expanded(
-                    flex: 1,
-                    child: ElevatedButton(
-                      onPressed: canCheckout
-                          ? (_cart.isEmpty ? null : _confirmOrder)
-                          : (_cart.isEmpty
-                                ? null
-                                : () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Xác nhận đặt món'),
-                                        content: const Text(
-                                          'Gửi đơn hàng này cho Cashier?',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context),
-                                            child: const Text('Hủy'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () => _finishStaffOrder(
-                                              context,
-                                              'Đặt món',
-                                            ),
-                                            child: const Text('XÁC NHẬN'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isUser
-                            ? Colors.green
-                            : (canCheckout ? Colors.orangeAccent : Colors.blue),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: Text(
-                        isUser
-                            ? 'GỬI ĐƠN'
-                            : (canCheckout ? 'XÁC NHẬN' : 'ĐẶT MÓN'),
-                        style: const TextStyle(
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: _cart.isEmpty ? null : _confirmOrder,
+                        icon: const Icon(
+                          Icons.receipt_outlined,
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          'TẠM TÍNH',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orangeAccent,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _cart.isEmpty
+                        ? null
+                        : () {
+                            final orderToPayment = SavedOrder(
+                              id:
+                                  _currentPendingOrder?.id ??
+                                  DateTime.now().millisecondsSinceEpoch
+                                      .toString(),
+                              shiftId: _currentPendingOrder?.shiftId,
+                              tableOrCustomer: _selectedOrderType,
+                              items: List<CartItem>.from(_cart),
+                              dateTime: DateTime.now(),
+                              subtotal: _subtotal,
+                              discountAmount: 0,
+                              vatRate: _vatPercent,
+                              vatAmount: _vatAmount,
+                              totalAmount: _total,
+                              paymentMethod:
+                                  _currentPendingOrder?.paymentMethod ?? 'cash',
+                              source:
+                                  _currentPendingOrder?.source ??
+                                  OrderSource.posStaff,
+                              status: OrderStatus.pending,
+                            );
+                            _completeOrder(orderToPayment);
+                          },
+                    icon: const Icon(Icons.payment, color: Colors.white),
+                    label: const Text(
+                      'THANH TOÁN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 2,
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ),
@@ -2727,7 +3146,9 @@ class _VATInputState extends State<_VATInput> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.vatPercent.toStringAsFixed(0));
+    _controller = TextEditingController(
+      text: widget.vatPercent.toStringAsFixed(0),
+    );
   }
 
   @override
@@ -2838,7 +3259,10 @@ class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
       width: 50,
       child: TextField(
         textAlign: TextAlign.center,
-        keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
+        keyboardType: const TextInputType.numberWithOptions(
+          signed: false,
+          decimal: false,
+        ),
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: const InputDecoration(
           isDense: true,
@@ -2863,6 +3287,28 @@ class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
           }
         },
       ),
+    );
+  }
+}
+
+class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    // Xóa tất cả ký tự không phải số
+    String chars = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (chars.isEmpty) return newValue.copyWith(text: '');
+
+    double value = double.parse(chars);
+    final formatter = NumberFormat.decimalPattern('vi_VN');
+    String newText = formatter.format(value);
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
     );
   }
 }

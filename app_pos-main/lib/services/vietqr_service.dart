@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:pos_fnb/config/secrets.dart';
+import 'package:pos_fnb/config/app_secrets.dart';
 
 class VietQRService {
   static const String _baseUrl = 'https://api.vietqr.io/v2/generate';
