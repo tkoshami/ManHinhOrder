@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/constants.dart';
 import 'package:pos_fnb/models/app_models.dart';
-import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:pos_fnb/screens/self_order_payment_screen.dart';
+import 'package:pos_fnb/services/supabase_service.dart';
+import 'package:pos_fnb/widgets/product_image.dart';
 
 class SelfOrderScreen extends StatefulWidget {
   const SelfOrderScreen({super.key});
@@ -17,8 +18,8 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
   List<Product> _filteredProducts = [];
   List<CartItem> _cart = [];
   bool _isLoading = true;
-  String _selectedCategory = 'Tất cả';
-  List<String> _categories = ['Tất cả'];
+  String _selectedCategory = appCategories[0];
+  List<String> _categories = [appCategories[0]];
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
   final TextEditingController _searchController = TextEditingController();
@@ -39,75 +40,71 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
     setState(() => _isLoading = true);
     try {
       final products = await SupabaseService.getProducts();
-      final categories = await SupabaseService.getCategories();
+      final productCategories = await SupabaseService.getProductCategories();
+      final loadedCategories = productCategories
+          .map((category) => category.name.trim())
+          .where((name) => name.isNotEmpty)
+          .toList();
+      final categoryMap = {
+        for (final category in productCategories) category.id: category.name,
+      };
+      final loadedProducts = products.isEmpty
+          ? List<Product>.from(defaultProducts)
+          : products;
+      final syncedProducts = loadedProducts.map((product) {
+        final categoryName = product.categoryId == null
+            ? product.categoryName
+            : categoryMap[product.categoryId] ?? product.categoryName;
+
+        if (categoryName == product.categoryName) return product;
+
+        return Product(
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          imageUrl: product.imageUrl,
+          categoryId: product.categoryId,
+          categoryName: categoryName,
+          isAvailable: product.isAvailable,
+        );
+      }).toList();
 
       setState(() {
-        // Tạo map để tra cứu tên danh mục từ ID
-        final Map<int, String> categoryMap = {
-          for (var c in categories) c.id: c.name,
-        };
-
-        // Cập nhật tên danh mục cho sản phẩm nếu bị thiếu hoặc là 'Khác'
-        _allProducts = products.map((p) {
-          if ((p.categoryName == 'Khác' || p.categoryName.isEmpty) &&
-              p.categoryId != null) {
-            final nameFromId = categoryMap[p.categoryId];
-            if (nameFromId != null) {
-              return Product(
-                id: p.id,
-                name: p.name,
-                price: p.price,
-                imageUrl: p.imageUrl,
-                categoryId: p.categoryId,
-                categoryName: nameFromId,
-                isAvailable: p.isAvailable,
-              );
-            }
-          }
-          return p;
-        }).toList();
-
-        // Tạo danh sách category linh hoạt
-        final Set<String> catSet = {'Tất cả'};
-        if (categories.isNotEmpty) {
-          catSet.addAll(categories.map((c) => c.name));
-        }
-        for (var p in _allProducts) {
-          if (p.categoryName.isNotEmpty) {
-            catSet.add(p.categoryName);
-          }
-        }
-        _categories = catSet.toList();
-
-        if (_allProducts.isEmpty) {
-          _allProducts = List.from(defaultProducts);
-          _categories = appCategories;
-        }
-
-        _filterProducts(_selectedCategory, _searchController.text);
+        _categories = [appCategories[0], ...loadedCategories];
+        _selectedCategory = _categories.contains(_selectedCategory)
+            ? _selectedCategory
+            : _categories.first;
+        _allProducts = syncedProducts;
+        _filteredProducts = _filterProductList(
+          _selectedCategory,
+          _searchController.text,
+        );
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
         _allProducts = List.from(defaultProducts);
-        _categories = appCategories;
-        _filterProducts(_selectedCategory, _searchController.text);
+        _categories = [appCategories[0]];
+        _selectedCategory = _categories.first;
+        _filteredProducts = _allProducts;
         _isLoading = false;
       });
     }
   }
 
+  List<Product> _filterProductList(String category, [String query = '']) {
+    return _allProducts.where((p) {
+      final matchesCategory =
+          category == appCategories[0] || p.categoryName == category;
+      final matchesSearch = p.name.toLowerCase().contains(query.toLowerCase());
+      return matchesCategory && matchesSearch;
+    }).toList();
+  }
+
   void _filterProducts(String category, [String query = '']) {
     setState(() {
       _selectedCategory = category;
-      _filteredProducts = _allProducts.where((p) {
-        final matchesCategory =
-            category == 'Tất cả' || p.categoryName == category;
-        final matchesSearch = p.name.toLowerCase().contains(
-          query.toLowerCase(),
-        );
-        return matchesCategory && matchesSearch;
-      }).toList();
+      _filteredProducts = _filterProductList(category, query);
     });
   }
 
@@ -132,86 +129,91 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                     : 'Chỉnh sửa: ${product.name}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (product.imageUrl.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          product.imageUrl,
-                          height: 150,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 150,
-                            color: Colors.grey[200],
-                            child: const Icon(
-                              Icons.fastfood,
-                              size: 50,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Text(
-                      currencyFormat.format(product.price),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.remove_circle_outline,
-                            size: 32,
-                            color: Colors.green,
-                          ),
-                          onPressed: quantity > 1
-                              ? () => setDialogState(() => quantity--)
-                              : null,
-                        ),
+              content: SizedBox(
+                width: 450,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (product.imageUrl.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            '$quantity',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: ProductImage(
+                              imageUrl: product.imageUrl,
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
                             ),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.add_circle_outline,
-                            size: 32,
-                            color: Colors.green,
-                          ),
-                          onPressed: () => setDialogState(() => quantity++),
+                      Text(
+                        currencyFormat.format(product.price),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: noteController,
-                      maxLength: 100,
-                      decoration: InputDecoration(
-                        labelText: 'Ghi chú',
-                        hintText: 'VD: Không đá, ít đường...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        counterStyle: const TextStyle(fontSize: 12),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.remove_circle_outline,
+                              size: 32,
+                              color: Colors.green,
+                            ),
+                            onPressed: quantity > 1
+                                ? () => setDialogState(() => quantity--)
+                                : null,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '$quantity',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.add_circle_outline,
+                              size: 32,
+                              color: Colors.green,
+                            ),
+                            onPressed: () => setDialogState(() => quantity++),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Ghi chú món:',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: noteController,
+                        maxLines: 2,
+                        maxLength: 100,
+                        decoration: InputDecoration(
+                          hintText: 'VD: ít đường, không đá...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          counterText: '${noteController.text.length}/100',
+                        ),
+                        onChanged: (v) => setDialogState(() {}),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -422,14 +424,10 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Image.network(
-                        product.imageUrl,
+                      child: ProductImage(
+                        imageUrl: product.imageUrl,
                         fit: BoxFit.cover,
                         width: double.infinity,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.fastfood, size: 40),
-                        ),
                       ),
                     ),
                     Padding(
@@ -549,16 +547,11 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                                 },
                                 leading: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    item.product.imageUrl,
+                                  child: ProductImage(
+                                    imageUrl: item.product.imageUrl,
                                     width: 50,
                                     height: 50,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      width: 50,
-                                      height: 50,
-                                      color: Colors.grey[200],
-                                    ),
                                   ),
                                 ),
                                 title: Text(

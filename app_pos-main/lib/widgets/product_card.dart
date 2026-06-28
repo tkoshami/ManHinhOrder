@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/app_models.dart';
 import '../data/constants.dart';
+import 'product_image.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
@@ -21,13 +22,14 @@ class ProductCard extends StatelessWidget {
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                child: Image.network(
-                  product.imageUrl,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
+                child: ProductImage(
+                  imageUrl: product.imageUrl,
                   fit: BoxFit.cover,
                   width: double.infinity,
-                  cacheWidth: 300, 
-                  errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.image)),
+                  cacheWidth: 300,
                 ),
               ),
             ),
@@ -38,14 +40,20 @@ class ProductCard extends StatelessWidget {
                 children: [
                   Text(
                     product.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     appCurrencyFormat.format(product.price),
-                    style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),

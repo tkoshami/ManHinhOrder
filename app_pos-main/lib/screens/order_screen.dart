@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -6,10 +7,11 @@ import 'package:pos_fnb/data/constants.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/screens/profile_screen.dart';
-import 'package:pos_fnb/screens/settings_screen.dart';
-import 'package:pos_fnb/widgets/vietqr_display.dart';
-import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:pos_fnb/screens/qr_generator_screen.dart';
+import 'package:pos_fnb/screens/settings_screen.dart';
+import 'package:pos_fnb/services/supabase_service.dart';
+import 'package:pos_fnb/widgets/product_image.dart';
+import 'package:pos_fnb/widgets/vietqr_display.dart';
 
 class OrderScreen extends StatefulWidget {
   final UserAccount user;
@@ -34,7 +36,7 @@ class _OrderScreenState extends State<OrderScreen> {
   String _selectedOrderType = appOrderTypes[0];
   final List<String> _orderTypes = appOrderTypes;
   String _selectedCategory = appCategories[0];
-  List<String> _categories = List.from(appCategories);
+  List<String> _categories = [appCategories[0]];
 
   // VAT: lưu % dạng số (vd: 10 = 10%), mặc định 8
   double _vatPercent = 8;
@@ -160,9 +162,7 @@ class _OrderScreenState extends State<OrderScreen> {
         .map((category) => category.name.trim())
         .where((name) => name.isNotEmpty)
         .toList();
-    final categoryNames = loadedCategories.isEmpty
-        ? List<String>.from(appCategories)
-        : <String>[appCategories[0], ...loadedCategories];
+    final categoryNames = <String>[appCategories[0], ...loadedCategories];
     final categoryMap = {
       for (final category in productCategories) category.id: category.name,
     };
@@ -1376,31 +1376,46 @@ class _OrderScreenState extends State<OrderScreen> {
                 ),
               ],
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Giá gốc:',
-                          style: TextStyle(color: Colors.grey),
+            content: SizedBox(
+              width: 450,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (product.imageUrl.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: ProductImage(
+                            imageUrl: product.imageUrl,
+                            height: 200,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
                         ),
-                        Text(
-                          currencyFormat.format(product.price),
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ],
+                      ),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Giá gốc:',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          Text(
+                            currencyFormat.format(product.price),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 16),
                   const Text(
                     'Giảm giá (%):',
@@ -1409,6 +1424,10 @@ class _OrderScreenState extends State<OrderScreen> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: discountController,
+                    onTap: () => discountController.selection = TextSelection(
+                      baseOffset: 0,
+                      extentOffset: discountController.text.length,
+                    ),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
@@ -1425,13 +1444,23 @@ class _OrderScreenState extends State<OrderScreen> {
                       hintText: '0 - 100',
                     ),
                     onChanged: (v) {
+                      if (v.length > 1 &&
+                          v.startsWith('0') &&
+                          !v.startsWith('0.')) {
+                        discountController.text = v.substring(1);
+                        discountController.selection =
+                            TextSelection.fromPosition(
+                          TextPosition(offset: discountController.text.length),
+                        );
+                        v = discountController.text;
+                      }
                       final val = double.tryParse(v) ?? 0;
                       if (val > 100) {
                         discountController.text = '100';
                         discountController.selection =
                             TextSelection.fromPosition(
-                              const TextPosition(offset: 3),
-                            );
+                          const TextPosition(offset: 3),
+                        );
                       }
                       setDialogState(() {});
                     },
@@ -1495,7 +1524,8 @@ class _OrderScreenState extends State<OrderScreen> {
                 ],
               ),
             ),
-            actions: [
+          ),
+          actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
@@ -1529,6 +1559,7 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   void _showEditCartDialog(BuildContext context, int cartIndex) {
+    if (cartIndex < 0 || cartIndex >= _cart.length) return;
     final item = _cart[cartIndex];
     final discountController = TextEditingController(
       text: item.discountPercent == 0
@@ -1541,8 +1572,8 @@ class _OrderScreenState extends State<OrderScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (stateCtx, setDialogState) {
           final discountPercent = double.tryParse(discountController.text) ?? 0;
           final finalPrice = item.product.price * (1 - discountPercent / 100);
 
@@ -1550,199 +1581,212 @@ class _OrderScreenState extends State<OrderScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            title: Row(
-              children: [
-                const Icon(Icons.edit, color: Colors.blue),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    item.product.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            title: Text(
+              item.product.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Số lượng:',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.remove_circle_outline,
-                          color: Colors.red,
+            content: SizedBox(
+              width: 400,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (item.product.imageUrl.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: ProductImage(
+                            imageUrl: item.product.imageUrl,
+                            height: 200,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
                         ),
-                        onPressed: () {
-                          if (quantity <= 1) {
-                            Navigator.pop(context);
-                            _updateCartItem(cartIndex, 0, '', 0);
-                            return;
-                          }
-
-                          setDialogState(() {
-                            quantity--;
-                            qtyController.text = '$quantity';
-                          });
-                        },
                       ),
-                      SizedBox(
-                        width: 80,
-                        child: TextField(
-                          textAlign: TextAlign.center,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            signed: false,
-                            decimal: false,
+                    const Text(
+                      'Số lượng:',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.remove_circle_outline,
+                            color: Colors.red,
                           ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          controller: qtyController,
-                          onChanged: (v) {
-                            final val = int.tryParse(v) ?? 0;
-                            if (v.isEmpty || val <= 0) {
-                              Navigator.pop(context);
+                          onPressed: () {
+                            if (quantity <= 1) {
+                              Navigator.pop(dialogCtx);
                               _updateCartItem(cartIndex, 0, '', 0);
-                            } else if (val > 100) {
-                              qtyController.text = '100';
-                              qtyController.selection =
-                                  TextSelection.fromPosition(
-                                    const TextPosition(offset: 3),
-                                  );
-                              setDialogState(() => quantity = 100);
-                            } else {
-                              // Không ép controller.text ở đây để backspace hoạt động bình thường
-                              setDialogState(() => quantity = val);
+                              return;
                             }
+
+                            setDialogState(() {
+                              quantity--;
+                              qtyController.text = '$quantity';
+                            });
                           },
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.add_circle_outline,
-                          color: Colors.green,
+                        SizedBox(
+                          width: 80,
+                          child: TextField(
+                            textAlign: TextAlign.center,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              signed: false,
+                              decimal: false,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            controller: qtyController,
+                            onChanged: (v) {
+                              final val = int.tryParse(v) ?? 0;
+                              if (v.isEmpty || val <= 0) {
+                                // Do nothing while typing
+                              } else if (val > 100) {
+                                qtyController.text = '100';
+                                qtyController.selection =
+                                    TextSelection.fromPosition(
+                                      const TextPosition(offset: 3),
+                                    );
+                                setDialogState(() => quantity = 100);
+                              } else {
+                                setDialogState(() => quantity = val);
+                              }
+                            },
+                          ),
                         ),
-                        onPressed: () => setDialogState(() {
-                          if (quantity < 100) {
-                            quantity++;
-                            qtyController.text = '$quantity';
-                          }
-                        }),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Giảm giá (%):',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: discountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                        IconButton(
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            color: Colors.green,
+                          ),
+                          onPressed: () => setDialogState(() {
+                            if (quantity < 100) {
+                              quantity++;
+                              qtyController.text = '$quantity';
+                            }
+                          }),
+                        ),
+                      ],
                     ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(r'^\d+\.?\d{0,2}'),
-                      ),
-                    ],
-                    decoration: InputDecoration(
-                      suffixText: '%',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Giảm giá (%):',
+                      style: TextStyle(fontWeight: FontWeight.w500),
                     ),
-                    onChanged: (v) {
-                      final val = double.tryParse(v) ?? 0;
-                      if (val > 100) {
-                        discountController.text = '100';
-                        discountController.selection =
-                            TextSelection.fromPosition(
-                              const TextPosition(offset: 3),
-                            );
-                      }
-                      setDialogState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Ghi chú:',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: noteController,
-                    maxLines: 2,
-                    maxLength: 100,
-                    decoration: InputDecoration(
-                      hintText: 'Ghi chú món ăn...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: discountController,
+                      onTap: () => discountController.selection = TextSelection(
+                        baseOffset: 0,
+                        extentOffset: discountController.text.length,
                       ),
-                      counterText: '${noteController.text.length}/100',
-                    ),
-                    onChanged: (v) => setDialogState(() {}),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Tổng cộng:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}'),
+                        ),
+                      ],
+                      decoration: InputDecoration(
+                        suffixText: '%',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      Text(
-                        currencyFormat.format(finalPrice * quantity),
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                      onChanged: (v) {
+                        if (v.length > 1 &&
+                            v.startsWith('0') &&
+                            !v.startsWith('0.')) {
+                          discountController.text = v.substring(1);
+                          discountController.selection =
+                              TextSelection.fromPosition(
+                            TextPosition(offset: discountController.text.length),
+                          );
+                          v = discountController.text;
+                        }
+                        final val = double.tryParse(v) ?? 0;
+                        if (val > 100) {
+                          discountController.text = '100';
+                          discountController.selection =
+                              TextSelection.fromPosition(
+                            const TextPosition(offset: 3),
+                          );
+                        }
+                        setDialogState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Ghi chú món:',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: noteController,
+                      maxLines: 2,
+                      maxLength: 100,
+                      decoration: InputDecoration(
+                        hintText: 'VD: ít đường, không đá...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
+                        counterText: '${noteController.text.length}/100',
                       ),
-                    ],
-                  ),
-                ],
+                      onChanged: (v) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Tổng cộng:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          currencyFormat.format(finalPrice * quantity),
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
             actions: [
-              ElevatedButton.icon(
+              TextButton.icon(
                 onPressed: () {
-                  Navigator.pop(context);
+                  Navigator.pop(dialogCtx);
                   _updateCartItem(cartIndex, 0, '', 0);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                icon: const Icon(Icons.delete_outline, color: Colors.white),
-                label: const Text('Xóa', style: TextStyle(color: Colors.white)),
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                label: const Text('Xóa', style: TextStyle(color: Colors.red)),
               ),
-              const Spacer(),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
-                child: const Text('Hủy', style: TextStyle(color: Colors.white)),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -1751,7 +1795,7 @@ class _OrderScreenState extends State<OrderScreen> {
                         0.0,
                         100.0,
                       );
-                  Navigator.pop(context);
+                  Navigator.pop(dialogCtx);
                   _updateCartItem(
                     cartIndex,
                     discount,
@@ -2878,18 +2922,39 @@ class _OrderScreenState extends State<OrderScreen> {
               : ListView.separated(
                   itemCount: _cart.length,
                   separatorBuilder: (_, _) => const Divider(),
-                  itemBuilder: (context, index) {
+                  itemBuilder: (ctx, index) {
                     final item = _cart[index];
                     return ListTile(
-                      leading: IconButton(
-                        icon: const Icon(
-                          Icons.delete_sweep_outlined,
-                          color: Colors.red,
+                      leading: SizedBox(
+                        width: 100,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              constraints: const BoxConstraints(),
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(
+                                Icons.delete_sweep_outlined,
+                                color: Colors.red,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                _syncState(() => _cart.removeAt(index));
+                              },
+                              tooltip: 'Xóa món này',
+                            ),
+                            const SizedBox(width: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: ProductImage(
+                                imageUrl: item.product.imageUrl,
+                                width: 45,
+                                height: 45,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ],
                         ),
-                        onPressed: () {
-                          _syncState(() => _cart.removeAt(index));
-                        },
-                        tooltip: 'Xóa món này',
                       ),
                       title: Text(
                         item.product.name,
@@ -2977,7 +3042,7 @@ class _OrderScreenState extends State<OrderScreen> {
                           ),
                         ],
                       ),
-                      onTap: () => _showEditCartDialog(context, index),
+                      onTap: () => _showEditCartDialog(ctx, index),
                     );
                   },
                 ),

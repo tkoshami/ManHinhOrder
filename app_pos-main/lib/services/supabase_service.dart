@@ -49,7 +49,7 @@ class SupabaseService {
     try {
       final response = await _supabase
           .from('products')
-          .select()
+          .select('*, product_categories(name)')
           .eq('is_available', true)
           .order('display_order', ascending: true);
 
@@ -57,8 +57,11 @@ class SupabaseService {
       return data.map((json) {
         final rawCategoryId =
             json['category_id'] ?? json['product_category_id'];
+        final productCategory = json['product_categories'];
         final rawCategoryName =
-            json['category_name'] ?? json['category'] ?? 'Khác';
+            productCategory is Map && productCategory['name'] != null
+            ? productCategory['name']
+            : json['category_name'] ?? json['category'] ?? 'Khác';
 
         return Product(
           id: int.tryParse(json['id']?.toString() ?? '') ?? 0,

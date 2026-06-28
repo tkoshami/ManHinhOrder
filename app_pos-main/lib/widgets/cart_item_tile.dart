@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:pos_fnb/models/app_models.dart';
-import 'package:pos_fnb/data/constants.dart';
-
 import 'package:flutter/services.dart';
+import 'package:pos_fnb/data/constants.dart';
+import 'package:pos_fnb/models/app_models.dart';
+import 'package:pos_fnb/widgets/product_image.dart';
 
 class CartItemTile extends StatefulWidget {
   final CartItem item;
@@ -57,6 +57,15 @@ class _CartItemTileState extends State<CartItemTile> {
     return ListTile(
       onTap: widget.onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: ProductImage(
+          imageUrl: widget.item.product.imageUrl,
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+        ),
+      ),
       title: Text(
         widget.item.product.name,
         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -81,10 +90,11 @@ class _CartItemTileState extends State<CartItemTile> {
             child: TextField(
               controller: _controller,
               textAlign: TextAlign.center,
-              keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-              ],
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: false,
+                decimal: false,
+              ),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: const InputDecoration(
                 isDense: true,
                 contentPadding: EdgeInsets.zero,

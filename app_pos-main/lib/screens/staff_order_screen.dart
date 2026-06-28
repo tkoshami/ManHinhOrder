@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:pos_fnb/data/constants.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
-import 'package:pos_fnb/screens/login_screen.dart';
 import 'package:pos_fnb/screens/feedback_screen.dart';
-import 'package:pos_fnb/data/constants.dart';
-import 'package:pos_fnb/widgets/vietqr_display.dart';
+import 'package:pos_fnb/screens/login_screen.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
-import 'package:pos_fnb/widgets/product_card.dart';
 import 'package:pos_fnb/widgets/cart_item_tile.dart';
+import 'package:pos_fnb/widgets/product_card.dart';
+import 'package:pos_fnb/widgets/product_image.dart';
+import 'package:pos_fnb/widgets/vietqr_display.dart';
 
 class StaffOrderScreen extends StatefulWidget {
   final UserAccount user;
@@ -24,8 +25,9 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   bool _isLoadingProducts = true;
   List<Product> _filteredProducts = [];
   List<CartItem> _cart = [];
-  
+
   String _selectedCategory = appCategories[0];
+  List<String> _categories = [appCategories[0]];
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
   final TextEditingController _searchController = TextEditingController();
 
@@ -38,8 +40,38 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   Future<void> _loadProducts() async {
     setState(() => _isLoadingProducts = true);
     final products = await SupabaseService.getProducts();
+    final productCategories = await SupabaseService.getProductCategories();
+    final loadedCategories = productCategories
+        .map((category) => category.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+    final categoryMap = {
+      for (final category in productCategories) category.id: category.name,
+    };
+
     setState(() {
-      _allProducts = products.isEmpty ? List.from(defaultProducts) : products;
+      _categories = [appCategories[0], ...loadedCategories];
+      _selectedCategory = _categories.first;
+      final loadedProducts = products.isEmpty
+          ? List<Product>.from(defaultProducts)
+          : products;
+      _allProducts = loadedProducts.map((product) {
+        final categoryName = product.categoryId == null
+            ? product.categoryName
+            : categoryMap[product.categoryId] ?? product.categoryName;
+
+        if (categoryName == product.categoryName) return product;
+
+        return Product(
+          id: product.id,
+          categoryId: product.categoryId,
+          name: product.name,
+          price: product.price,
+          imageUrl: product.imageUrl,
+          categoryName: categoryName,
+          isAvailable: product.isAvailable,
+        );
+      }).toList();
       _filteredProducts = _allProducts;
       _isLoadingProducts = false;
     });
@@ -50,22 +82,149 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   void _filterProducts(String query) {
     setState(() {
       _filteredProducts = _allProducts.where((p) {
-        final matchesSearch = p.name.toLowerCase().contains(query.toLowerCase());
-        final matchesCategory = _selectedCategory == appCategories[0] || p.categoryName == _selectedCategory;
+        final matchesSearch = p.name.toLowerCase().contains(
+          query.toLowerCase(),
+        );
+        final matchesCategory =
+            _selectedCategory == _categories.first ||
+            p.categoryName == _selectedCategory;
         return matchesSearch && matchesCategory;
       }).toList();
     });
   }
 
-  void _addToCart(Product product) {
+  void _addToCart(Product product, {int quantity = 1, String note = ''}) {
     setState(() {
-      final index = _cart.indexWhere((item) => item.product.id == product.id);
+      final index = _cart.indexWhere(
+        (item) => item.product.id == product.id && item.note == note,
+      );
       if (index >= 0) {
-        _cart[index].quantity++;
+        _cart[index].quantity += quantity;
       } else {
-        _cart.add(CartItem(product: product));
+        _cart.add(CartItem(product: product, quantity: quantity, note: note));
       }
     });
+  }
+
+  void _showProductDetailDialog(Product product) {
+    int quantity = 1;
+    final noteController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            product.name,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (product.imageUrl.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: ProductImage(
+                          imageUrl: product.imageUrl,
+                          height: 200,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  Text(
+                    currencyFormat.format(product.price),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Số lượng:'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.remove_circle_outline,
+                          color: Colors.red,
+                        ),
+                        onPressed: () {
+                          if (quantity > 1) {
+                            setDialogState(() => quantity--);
+                          }
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          '$quantity',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.add_circle_outline,
+                          color: Colors.green,
+                        ),
+                        onPressed: () {
+                          if (quantity < 100) {
+                            setDialogState(() => quantity++);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Ghi chú (ví dụ: ít đá, không đường...)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _addToCart(
+                  product,
+                  quantity: quantity,
+                  note: noteController.text.trim(),
+                );
+                Navigator.pop(dialogCtx);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+              ),
+              child: const Text(
+                'THÊM VÀO GIỎ',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _updateQuantity(int index, int delta) {
@@ -90,67 +249,104 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text('Chỉnh sửa: ${item.product.name}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Số lượng:'),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                    onPressed: () {
-                      if (quantity > 1) {
-                        setDialogState(() {
-                          quantity--;
-                          qtyController.text = '$quantity';
-                        });
-                      } else {
-                        Navigator.pop(context);
-                        setState(() => _cart.removeAt(index));
-                      }
-                    },
-                  ),
-                  SizedBox(
-                    width: 60,
-                    child: TextField(
-                      controller: qtyController,
-                      textAlign: TextAlign.center,
-                      keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      onChanged: (v) {
-                        if (v.isEmpty || v == '0') {
-                          // Allow empty during typing, but will remove if saved empty
-                        } else {
-                          final val = int.tryParse(v) ?? 1;
-                          setDialogState(() => quantity = val > 100 ? 100 : val);
-                          if (val > 100) {
-                            qtyController.text = '100';
-                            qtyController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
-                          }
-                        }
-                      },
+                  if (item.product.imageUrl.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: ProductImage(
+                          imageUrl: item.product.imageUrl,
+                          height: 150,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
+                  const Text('Số lượng:'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.remove_circle_outline,
+                          color: Colors.red,
+                        ),
+                        onPressed: () {
+                          if (quantity > 1) {
+                            setDialogState(() {
+                              quantity--;
+                              qtyController.text = '$quantity';
+                            });
+                          } else {
+                            Navigator.pop(context);
+                            setState(() => _cart.removeAt(index));
+                          }
+                        },
+                      ),
+                      SizedBox(
+                        width: 60,
+                        child: TextField(
+                          controller: qtyController,
+                          textAlign: TextAlign.center,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            signed: false,
+                            decimal: false,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onChanged: (v) {
+                            if (v.isEmpty || v == '0') {
+                              // Allow empty during typing
+                            } else {
+                              final val = int.tryParse(v) ?? 1;
+                              setDialogState(
+                                () => quantity = val > 100 ? 100 : val,
+                              );
+                              if (val > 100) {
+                                qtyController.text = '100';
+                                qtyController.selection =
+                                    TextSelection.fromPosition(
+                                      const TextPosition(offset: 3),
+                                    );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.add_circle_outline,
+                          color: Colors.green,
+                        ),
+                        onPressed: () {
+                          if (quantity < 100) {
+                            setDialogState(() {
+                              quantity++;
+                              qtyController.text = '$quantity';
+                            });
+                          }
+                        },
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                    onPressed: () {
-                      if (quantity < 100) {
-                        setDialogState(() {
-                          quantity++;
-                          qtyController.text = '$quantity';
-                        });
-                      }
-                    },
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Ghi chú',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: noteController,
-                decoration: const InputDecoration(labelText: 'Ghi chú', border: OutlineInputBorder()),
-              ),
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -160,7 +356,10 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
               },
               child: const Text('XÓA MÓN', style: TextStyle(color: Colors.red)),
             ),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('HỦY'),
+            ),
             ElevatedButton(
               onPressed: () {
                 setState(() {
@@ -209,7 +408,10 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
         ],
       ),
     );
@@ -217,18 +419,21 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
 
   void _showVietQRDialog() {
     final subtotal = _subtotal;
-    final orderId = (DateTime.now().millisecondsSinceEpoch % 1000000).toString();
-    
+    final orderId = (DateTime.now().millisecondsSinceEpoch % 1000000)
+        .toString();
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Center(child: Text('QUÉT MÃ VIETQR', style: TextStyle(fontWeight: FontWeight.bold))),
-        content: VietQRDisplay(
-          amount: subtotal.toInt(),
-          description: orderId,
+        title: const Center(
+          child: Text(
+            'QUÉT MÃ VIETQR',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
+        content: VietQRDisplay(amount: subtotal.toInt(), description: orderId),
         actions: [
           Row(
             children: [
@@ -246,8 +451,13 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
                     Navigator.pop(context);
                     _processOrder('qr_code', manualId: orderId);
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Text('XÁC NHẬN ĐÃ CHUYỂN', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                  ),
+                  child: const Text(
+                    'XÁC NHẬN ĐÃ CHUYỂN',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ),
             ],
@@ -260,7 +470,9 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   Future<void> _processOrder(String? paymentMethod, {String? manualId}) async {
     final subtotal = _subtotal;
     final newOrder = SavedOrder(
-      id: manualId ?? (DateTime.now().millisecondsSinceEpoch % 10000000).toString(),
+      id:
+          manualId ??
+          (DateTime.now().millisecondsSinceEpoch % 10000000).toString(),
       shiftId: null,
       tableOrCustomer: 'Đơn từ Staff',
       items: List<CartItem>.from(_cart),
@@ -272,7 +484,9 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
       totalAmount: subtotal,
       paymentMethod: paymentMethod ?? 'cash',
       source: OrderSource.posStaff,
-      status: paymentMethod == null ? OrderStatus.pending : OrderStatus.completed,
+      status: paymentMethod == null
+          ? OrderStatus.pending
+          : OrderStatus.completed,
     );
 
     await SupabaseService.saveOrder(newOrder);
@@ -287,7 +501,11 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(paymentMethod == null ? 'Đã gửi đơn thành công!' : 'Đã thanh toán thành công!'),
+        content: Text(
+          paymentMethod == null
+              ? 'Đã gửi đơn thành công!'
+              : 'Đã thanh toán thành công!',
+        ),
         backgroundColor: Colors.green,
       ),
     );
@@ -297,7 +515,10 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ĐẶT MÓN', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text(
+          'ĐẶT MÓN',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         centerTitle: true,
         backgroundColor: Colors.blueAccent,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -305,19 +526,26 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
           TextButton.icon(
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => FeedbackScreen(currentUser: widget.user)),
+              MaterialPageRoute(
+                builder: (_) => FeedbackScreen(currentUser: widget.user),
+              ),
             ),
             icon: const Icon(Icons.feedback_outlined, color: Colors.white),
             label: const Text(
               'PHẢN HỒI',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => Navigator.pushReplacement(
-                context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            ),
           ),
         ],
       ),
@@ -341,15 +569,17 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
             decoration: InputDecoration(
               hintText: 'Tìm món...',
               prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
         _buildCategoryChips(),
         Expanded(
-          child: _isLoadingProducts 
-            ? const Center(child: CircularProgressIndicator())
-            : _buildProductGrid(),
+          child: _isLoadingProducts
+              ? const Center(child: CircularProgressIndicator())
+              : _buildProductGrid(),
         ),
       ],
     );
@@ -360,17 +590,21 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.only(bottom: 10, left: 8),
       child: Row(
-        children: appCategories.map((cat) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: ChoiceChip(
-            label: Text(cat),
-            selected: _selectedCategory == cat,
-            onSelected: (_) => setState(() {
-              _selectedCategory = cat;
-              _filterProducts(_searchController.text);
-            }),
-          ),
-        )).toList(),
+        children: _categories
+            .map(
+              (cat) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: ChoiceChip(
+                  label: Text(cat),
+                  selected: _selectedCategory == cat,
+                  onSelected: (_) => setState(() {
+                    _selectedCategory = cat;
+                    _filterProducts(_searchController.text);
+                  }),
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }
@@ -379,11 +613,15 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200, childAspectRatio: 0.8, crossAxisSpacing: 12, mainAxisSpacing: 12),
+        maxCrossAxisExtent: 200,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
       itemCount: _filteredProducts.length,
       itemBuilder: (context, index) => ProductCard(
         product: _filteredProducts[index],
-        onTap: () => _addToCart(_filteredProducts[index]),
+        onTap: () => _showProductDetailDialog(_filteredProducts[index]),
       ),
     );
   }
@@ -391,7 +629,13 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   Widget _buildCartPanel() {
     return Column(
       children: [
-        const Padding(padding: EdgeInsets.all(16), child: Text('GIỎ HÀNG', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'GIỎ HÀNG',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
         const Divider(height: 1),
         Expanded(child: _buildCartList()),
         const Divider(height: 1),
@@ -427,11 +671,20 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   Widget _buildCartTotal() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text('Tổng cộng:', style: TextStyle(fontSize: 16)),
-        Text(currencyFormat.format(_subtotal),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
-      ]),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('Tổng cộng:', style: TextStyle(fontSize: 16)),
+          Text(
+            currencyFormat.format(_subtotal),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -444,7 +697,14 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
         child: ElevatedButton(
           onPressed: _submitOrder,
           style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-          child: const Text('ĐẶT MÓN', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          child: const Text(
+            'ĐẶT MÓN',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
       ),
     );
