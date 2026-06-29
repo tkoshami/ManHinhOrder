@@ -130,14 +130,23 @@ class _OrderScreenState extends State<OrderScreen> {
   void _printBill(SavedOrder order) {
     PrintService.printBill(order);
 
+    // Xóa ngay lập tức các snackbar cũ để không bị dồn hàng chờ
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Đơn mới từ khách: ${order.id}. Đang in bill...'),
         backgroundColor: Colors.blue,
-        duration: const Duration(seconds: 5),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating, // Chuyển sang dạng nổi để tách biệt với đáy
+        margin: const EdgeInsets.all(10), // Thêm lề để đẹp hơn và dễ đóng
         action: SnackBarAction(
           label: 'Xem',
-          onPressed: () => _showOrderDetailsDialog(order),
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            _showOrderDetailsDialog(order);
+          },
         ),
       ),
     );
@@ -438,6 +447,7 @@ class _OrderScreenState extends State<OrderScreen> {
     _printBill(savedOrder ?? newOrder);
 
     if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -446,6 +456,7 @@ class _OrderScreenState extends State<OrderScreen> {
               : 'Đã lưu cục bộ (Lỗi server)',
         ),
         backgroundColor: savedOrder != null ? Colors.green : Colors.orange,
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -1006,10 +1017,12 @@ class _OrderScreenState extends State<OrderScreen> {
     _printBill(completedOrder);
 
     if (!savedToServer && mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Đã thanh toán cục bộ. Chưa đồng bộ được lên server.'),
           backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
         ),
       );
     }
@@ -1049,10 +1062,12 @@ class _OrderScreenState extends State<OrderScreen> {
     if (!mounted) return;
 
     if (!success) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Không thể hủy đơn. Vui lòng thử lại.'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
         ),
       );
       return;
@@ -1062,6 +1077,7 @@ class _OrderScreenState extends State<OrderScreen> {
       globalPendingOrders.removeWhere((o) => o.id == order.id);
     });
 
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Đã hủy đơn và xóa khỏi danh sách chờ'),
@@ -1482,10 +1498,12 @@ class _OrderScreenState extends State<OrderScreen> {
       );
       globalPendingOrders.add(newOrder);
     });
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Đã đặt món thành công! Đơn đã gửi cho Cashier.'),
         backgroundColor: Colors.green,
+        duration: Duration(seconds: 4),
       ),
     );
     _resetOrder();
