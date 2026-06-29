@@ -109,6 +109,38 @@ class SavedOrder {
     this.status = OrderStatus.pending,
   });
 
+  SavedOrder copyWith({
+    String? id,
+    int? shiftId,
+    List<CartItem>? items,
+    DateTime? dateTime,
+    double? subtotal,
+    double? discountAmount,
+    double? vatRate,
+    double? vatAmount,
+    double? totalAmount,
+    String? paymentMethod,
+    String? tableOrCustomer,
+    OrderSource? source,
+    OrderStatus? status,
+  }) {
+    return SavedOrder(
+      id: id ?? this.id,
+      shiftId: shiftId ?? this.shiftId,
+      items: items ?? this.items,
+      dateTime: dateTime ?? this.dateTime,
+      subtotal: subtotal ?? this.subtotal,
+      discountAmount: discountAmount ?? this.discountAmount,
+      vatRate: vatRate ?? this.vatRate,
+      vatAmount: vatAmount ?? this.vatAmount,
+      totalAmount: totalAmount ?? this.totalAmount,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      tableOrCustomer: tableOrCustomer ?? this.tableOrCustomer,
+      source: source ?? this.source,
+      status: status ?? this.status,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       if (shiftId != null) 'shift_id': shiftId,

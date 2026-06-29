@@ -771,7 +771,16 @@ class _OrderScreenState extends State<OrderScreen> {
                           children: [
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: () => _printBill(order),
+                                onPressed: () {
+                                  final pMethod = selectedMethod == 'Tiền mặt'
+                                      ? 'cash'
+                                      : (selectedMethod == 'Chuyển khoản'
+                                          ? 'qr_code'
+                                          : 'card');
+                                  _printBill(
+                                    order.copyWith(paymentMethod: pMethod),
+                                  );
+                                },
                                 icon: const Icon(Icons.print),
                                 label: const Text(
                                   'IN BILL',
@@ -1432,6 +1441,14 @@ class _OrderScreenState extends State<OrderScreen> {
                         ),
                       ),
                     ],
+                  ),
+                ],
+                if (paymentMethod == 'Chuyển khoản') ...[
+                  const SizedBox(height: 16),
+                  const Divider(color: Colors.brown, thickness: 0.2),
+                  VietQRDisplay(
+                    amount: order.totalAmount.toInt(),
+                    description: order.id ?? '',
                   ),
                 ],
                 const SizedBox(height: 32),

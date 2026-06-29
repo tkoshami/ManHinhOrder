@@ -38,6 +38,8 @@ dependencies:
   supabase_flutter: ^2.15.0
   qr_flutter: ^4.1.0
   sunmi_printer_plus: 4.1.1
+  http: ^1.2.1
+  shared_preferences: ^2.2.3
 
 dev_dependencies:
   flutter_test:

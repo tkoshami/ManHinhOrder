@@ -24,7 +24,6 @@ class _VietQRDisplayState extends State<VietQRDisplay> {
   String? _qrBase64;
   String? _errorMessage;
   bool _isLoading = true;
-  String? _bankBin;
   String? _accountNo;
   String? _accountName;
   String? _bankShortName;
@@ -66,7 +65,7 @@ class _VietQRDisplayState extends State<VietQRDisplay> {
       }
 
       // 2. Gọi API tạo mã QR
-      final qrData = await VietQRService.generateQRCode(
+      final qrResponse = await VietQRService.generateQRCode(
         bankBin: bankBin!,
         accountNo: accountNo!,
         accountName: accountName!,
@@ -76,8 +75,7 @@ class _VietQRDisplayState extends State<VietQRDisplay> {
 
       if (mounted) {
         setState(() {
-          _qrBase64 = qrData;
-          _bankBin = bankBin;
+          _qrBase64 = qrResponse['qrDataURL'];
           _accountNo = accountNo;
           _accountName = accountName;
           _bankShortName = bankShortName;

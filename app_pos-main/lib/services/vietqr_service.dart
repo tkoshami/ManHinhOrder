@@ -26,7 +26,7 @@ class VietQRService {
   }
 
   /// Sinh mã QR từ VietQR.io
-  static Future<String> generateQRCode({
+  static Future<Map<String, String>> generateQRCode({
     required String bankBin,
     required String accountNo,
     required String accountName,
@@ -55,7 +55,10 @@ class VietQRService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
         if (data['code'] == '00') {
-          return data['data']['qrDataURL'];
+          return {
+            'qrDataURL': data['data']['qrDataURL'] ?? '',
+            'qrCode': data['data']['qrCode'] ?? '',
+          };
         } else {
           throw Exception(data['desc'] ?? 'Lỗi từ hệ thống VietQR');
         }
