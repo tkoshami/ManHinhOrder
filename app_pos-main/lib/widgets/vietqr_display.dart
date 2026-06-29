@@ -96,13 +96,17 @@ class _VietQRDisplayState extends State<VietQRDisplay> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final double qrWidth = isMobile ? MediaQuery.of(context).size.width * 0.8 : 320;
+    
     return SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 320,
-            height: 420,
+            width: qrWidth,
+            height: qrWidth * 1.3,
+            constraints: const BoxConstraints(maxHeight: 420, maxWidth: 320),
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: Colors.grey.shade300),
