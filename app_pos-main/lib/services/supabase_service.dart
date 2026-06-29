@@ -100,7 +100,7 @@ class SupabaseService {
   }
 
   // --- ORDERS ---
-  static Future<bool> saveOrder(SavedOrder order) async {
+  static Future<SavedOrder?> saveOrder(SavedOrder order) async {
     try {
       // Nếu là đơn từ QR hoặc Kiosk, không bắt buộc shiftId
       int? sId = order.shiftId;
@@ -111,18 +111,19 @@ class SupabaseService {
         }
       }
 
-      if (sId == null && order.source == OrderSource.posStaff) {
-        print('Lỗi: Không tìm thấy ca làm việc đang mở cho nhân viên POS');
-        return false;
-      }
-
+      // Continue without shift_id when no open shift exists.
       final payload = order.toJson();
       if (sId != null) payload['shift_id'] = sId;
-      await _supabase.from('orders').insert(payload);
-      return true;
+
+      final response = await _supabase
+          .from('orders')
+          .insert(payload)
+          .select()
+          .single();
+      return SavedOrder.fromJson(response);
     } catch (e) {
       print('Lỗi lưu đơn hàng: $e');
-      return false;
+      return null;
     }
   }
 

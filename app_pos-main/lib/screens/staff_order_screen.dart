@@ -489,11 +489,11 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
           : OrderStatus.completed,
     );
 
-    await SupabaseService.saveOrder(newOrder);
+    final savedOrder = await SupabaseService.saveOrder(newOrder);
 
     setState(() {
       if (paymentMethod == null) {
-        globalPendingOrders.add(newOrder);
+        globalPendingOrders.add(savedOrder ?? newOrder);
       }
       _cart = [];
     });

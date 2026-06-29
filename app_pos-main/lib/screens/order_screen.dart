@@ -308,22 +308,53 @@ class _OrderScreenState extends State<OrderScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xác nhận hủy'),
-        content: const Text(
-          'Bạn có chắc chắn muốn hủy toàn bộ các món trong giỏ hàng không?',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Text('Xác nhận xóa giỏ hàng'),
+          ],
         ),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa toàn bộ các món trong giỏ hàng hiện tại không?',
+          style: TextStyle(fontSize: 16),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         actions: [
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text(
+              'KHÔNG',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
+          const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
               _syncState(() => _cart = []);
               Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('HỦY ĐƠN', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text(
+              'XÁC NHẬN',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -384,7 +415,7 @@ class _OrderScreenState extends State<OrderScreen> {
       status: OrderStatus.pending,
     );
 
-    final success = await SupabaseService.saveOrder(newOrder);
+    final savedOrder = await SupabaseService.saveOrder(newOrder);
 
     _syncState(() {
       if (_currentPendingOrder != null) {
@@ -392,7 +423,7 @@ class _OrderScreenState extends State<OrderScreen> {
           (o) => o.id == _currentPendingOrder!.id,
         );
       }
-      globalPendingOrders.add(newOrder);
+      globalPendingOrders.add(savedOrder ?? newOrder);
       _currentPendingOrder = null;
       _cart = [];
       _vatPercent = 8;
@@ -403,11 +434,11 @@ class _OrderScreenState extends State<OrderScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          success
+          savedOrder != null
               ? 'Đã xác nhận đơn và lưu vào danh sách chờ!'
               : 'Đã lưu cục bộ (Lỗi server)',
         ),
-        backgroundColor: success ? Colors.green : Colors.orange,
+        backgroundColor: savedOrder != null ? Colors.green : Colors.orange,
       ),
     );
   }
@@ -840,28 +871,56 @@ class _OrderScreenState extends State<OrderScreen> {
     final paymentMethod = method == 'Tiền mặt'
         ? 'cash'
         : (method == 'Chuyển khoản' ? 'qr_code' : 'card');
-    final completedOrder = await SupabaseService.completePendingOrder(
-      order,
-      paymentMethod,
-    );
 
-    if (completedOrder == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Không thể cập nhật trạng thái thanh toán. Vui lòng thử lại.',
-          ),
-          backgroundColor: Colors.red,
-        ),
+    SavedOrder localCompletedOrder() => SavedOrder(
+          id: order.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+          shiftId: order.shiftId,
+          tableOrCustomer: order.tableOrCustomer,
+          items: List<CartItem>.from(order.items),
+          dateTime: DateTime.now(),
+          subtotal: order.subtotal,
+          discountAmount: order.discountAmount,
+          vatRate: order.vatRate,
+          vatAmount: order.vatAmount,
+          totalAmount: order.totalAmount,
+          paymentMethod: paymentMethod,
+          source: order.source,
+          status: OrderStatus.completed,
+        );
+
+    final idInt = int.tryParse(order.id ?? '');
+    final isNewLocalOrder = idInt == null || idInt > 1000000000000;
+    bool savedToServer = true;
+    SavedOrder? currentOrder;
+
+    if (isNewLocalOrder) {
+      currentOrder = await SupabaseService.saveOrder(localCompletedOrder());
+    } else {
+      currentOrder = await SupabaseService.completePendingOrder(
+        order,
+        paymentMethod,
       );
-      return;
     }
+
+    if (currentOrder == null) {
+      savedToServer = false;
+    }
+
+    final completedOrder = currentOrder ?? localCompletedOrder();
 
     _syncState(() {
       globalPendingOrders.removeWhere((o) => o.id == order.id);
       globalCompletedOrders.insert(0, completedOrder);
     });
+
+    if (!savedToServer && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã thanh toán cục bộ. Chưa đồng bộ được lên server.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
 
     _showReceiptDialogForOrder(
       completedOrder,
@@ -1374,6 +1433,12 @@ class _OrderScreenState extends State<OrderScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ],
             ),
             content: SizedBox(
@@ -1467,15 +1532,29 @@ class _OrderScreenState extends State<OrderScreen> {
                   ),
                   const SizedBox(height: 12),
                   Wrap(
-                    spacing: 8,
+                    spacing: 12,
+                    runSpacing: 12,
                     children: [5, 10, 15, 20, 50]
                         .map(
-                          (pct) => ActionChip(
-                            label: Text('$pct%'),
-                            onPressed: () {
-                              discountController.text = pct.toString();
-                              setDialogState(() {});
-                            },
+                          (pct) => SizedBox(
+                            width: 75,
+                            height: 45,
+                            child: ActionChip(
+                              padding: EdgeInsets.zero,
+                              label: Center(
+                                child: Text(
+                                  '$pct%',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              onPressed: () {
+                                discountController.text = pct.toString();
+                                setDialogState(() {});
+                              },
+                            ),
                           ),
                         )
                         .toList(),
@@ -1526,32 +1605,44 @@ class _OrderScreenState extends State<OrderScreen> {
             ),
           ),
           actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
-              ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  final discount =
-                      (double.tryParse(discountController.text) ?? 0).clamp(
-                        0.0,
-                        100.0,
-                      );
-                  Navigator.pop(context);
-                  _addToCartWithDiscount(
-                    product,
-                    discount,
-                    noteController.text.trim(),
-                  );
-                },
-                icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
-                label: const Text(
-                  'Thêm vào đơn',
-                  style: TextStyle(color: Colors.white),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final discount =
+                        (double.tryParse(discountController.text) ?? 0).clamp(
+                          0.0,
+                          100.0,
+                        );
+                    Navigator.pop(context);
+                    _addToCartWithDiscount(
+                      product,
+                      discount,
+                      noteController.text.trim(),
+                    );
+                  },
+                  icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
+                  label: const Text(
+                    'THÊM VÀO ĐƠN',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
               ),
-            ],
+            ),
+          ],
           );
         },
       ),
@@ -1581,9 +1672,21 @@ class _OrderScreenState extends State<OrderScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            title: Text(
-              item.product.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.product.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
             content: SizedBox(
               width: 400,
@@ -1776,37 +1879,66 @@ class _OrderScreenState extends State<OrderScreen> {
               ),
             ),
             actions: [
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.pop(dialogCtx);
-                  _updateCartItem(cartIndex, 0, '', 0);
-                },
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                label: const Text('Xóa', style: TextStyle(color: Colors.red)),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  final discount =
-                      (double.tryParse(discountController.text) ?? 0).clamp(
-                        0.0,
-                        100.0,
-                      );
-                  Navigator.pop(dialogCtx);
-                  _updateCartItem(
-                    cartIndex,
-                    discount,
-                    noteController.text.trim(),
-                    quantity,
-                  );
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                child: const Text(
-                  'Lưu thay đổi',
-                  style: TextStyle(color: Colors.white),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogCtx);
+                          _updateCartItem(cartIndex, 0, '', 0);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'XÓA MÓN',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final discount = (double.tryParse(
+                                        discountController.text,
+                                      ) ??
+                                      0)
+                              .clamp(0.0, 100.0);
+                          Navigator.pop(dialogCtx);
+                          _updateCartItem(
+                            cartIndex,
+                            discount,
+                            noteController.text.trim(),
+                            quantity,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'LƯU THAY ĐỔI',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -2073,11 +2205,12 @@ class _OrderScreenState extends State<OrderScreen> {
                             return Card(
                               margin: const EdgeInsets.only(bottom: 12),
                               elevation: 2,
+                              color: Colors.orange.shade50,
                               child: Column(
                                 children: [
                                   ListTile(
                                     leading: CircleAvatar(
-                                      backgroundColor: Colors.orange[100],
+                                      backgroundColor: Colors.white,
                                       child: const Icon(
                                         Icons.table_restaurant,
                                         color: Colors.orange,
@@ -2099,57 +2232,75 @@ class _OrderScreenState extends State<OrderScreen> {
                                   Padding(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
-                                      vertical: 4,
+                                      vertical: 8,
                                     ),
                                     child: Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceAround,
                                       children: [
-                                        TextButton.icon(
+                                        ElevatedButton.icon(
                                           onPressed: () {
                                             Navigator.pop(context);
                                             _completeOrder(order);
                                           },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
                                           icon: const Icon(
                                             Icons.check_circle,
-                                            color: Colors.green,
+                                            size: 18,
                                           ),
                                           label: const Text(
                                             'Thanh toán',
                                             style: TextStyle(
-                                              color: Colors.green,
-                                              fontSize: 13,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
-                                        TextButton.icon(
+                                        ElevatedButton.icon(
                                           onPressed: () {
                                             Navigator.pop(context);
                                             _openPendingOrder(order);
                                           },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.blue,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
                                           icon: const Icon(
                                             Icons.edit,
-                                            color: Colors.blue,
+                                            size: 18,
                                           ),
                                           label: const Text(
                                             'Chỉnh sửa',
                                             style: TextStyle(
-                                              color: Colors.blue,
-                                              fontSize: 13,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
-                                        TextButton.icon(
+                                        ElevatedButton.icon(
                                           onPressed: () => _cancelOrder(order),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
                                           icon: const Icon(
                                             Icons.cancel,
-                                            color: Colors.red,
+                                            size: 18,
                                           ),
                                           label: const Text(
                                             'Hủy đơn',
                                             style: TextStyle(
-                                              color: Colors.red,
-                                              fontSize: 13,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
@@ -2262,7 +2413,14 @@ class _OrderScreenState extends State<OrderScreen> {
                     (cat) => Padding(
                       padding: const EdgeInsets.only(right: 12),
                       child: ChoiceChip(
-                        label: Text(cat, style: const TextStyle(fontSize: 12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        label: Text(
+                          cat,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         selected: _selectedCategory == cat,
                         onSelected: (sel) {
                           if (sel) {
@@ -2677,7 +2835,17 @@ class _OrderScreenState extends State<OrderScreen> {
                                   (cat) => Padding(
                                     padding: const EdgeInsets.only(right: 12),
                                     child: ChoiceChip(
-                                      label: Text(cat),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 12,
+                                      ),
+                                      label: Text(
+                                        cat,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                       selected: _selectedCategory == cat,
                                       onSelected: (sel) {
                                         if (sel) {
@@ -3220,30 +3388,33 @@ class _OrderScreenState extends State<OrderScreen> {
                 Row(
                   children: [
                     Expanded(
-                      flex: 1,
-                      child: OutlinedButton.icon(
-                        onPressed: _clearCart,
+                      child: ElevatedButton.icon(
+                        onPressed: _cart.isEmpty ? null : _clearCart,
                         icon: const Icon(
                           Icons.delete_outline,
-                          color: Colors.red,
+                          color: Colors.white,
                           size: 18,
                         ),
                         label: const Text(
-                          'XÓA',
-                          style: TextStyle(color: Colors.red, fontSize: 13),
+                          'XÓA GIỎ HÀNG',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
-                        style: OutlinedButton.styleFrom(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: Colors.red),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
+                          elevation: 0,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      flex: 2,
                       child: ElevatedButton.icon(
                         onPressed: _cart.isEmpty ? null : _confirmOrder,
                         icon: const Icon(
@@ -3265,6 +3436,7 @@ class _OrderScreenState extends State<OrderScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
+                          elevation: 0,
                         ),
                       ),
                     ),
