@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
+import 'package:pos_fnb/services/print_service.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -197,10 +198,11 @@ void showOrderDetail(
       actions: [
         TextButton.icon(
           onPressed: () {
+            PrintService.printBill(order);
             ScaffoldMessenger.of(ctx).showSnackBar(
               const SnackBar(
-                content: Text('In thành công'),
-                backgroundColor: Colors.green,
+                content: Text('Đang in hóa đơn...'),
+                backgroundColor: Colors.blue,
               ),
             );
           },

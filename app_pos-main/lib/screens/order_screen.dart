@@ -9,6 +9,7 @@ import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/screens/profile_screen.dart';
 import 'package:pos_fnb/screens/qr_generator_screen.dart';
 import 'package:pos_fnb/screens/settings_screen.dart';
+import 'package:pos_fnb/services/print_service.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:pos_fnb/widgets/product_image.dart';
 import 'package:pos_fnb/widgets/vietqr_display.dart';
@@ -121,18 +122,13 @@ class _OrderScreenState extends State<OrderScreen> {
 
       if (shouldNotify) {
         _notifiedQrOrderIds.add(orderId);
-        _mockPrintBill(newOrder);
+        _printBill(newOrder);
       }
     }
   }
 
-  void _mockPrintBill(SavedOrder order) {
-    debugPrint('--- AUTO PRINTING BILL ---');
-    debugPrint('Order ID: ${order.id}');
-    debugPrint('Customer: ${order.tableOrCustomer}');
-    debugPrint('Items: ${order.items.length}');
-    debugPrint('Total: ${order.totalAmount}');
-    debugPrint('--------------------------');
+  void _printBill(SavedOrder order) {
+    PrintService.printBill(order);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -320,7 +316,10 @@ class _OrderScreenState extends State<OrderScreen> {
           'Bạn có chắc chắn muốn xóa toàn bộ các món trong giỏ hàng hiện tại không?',
           style: TextStyle(fontSize: 16),
         ),
-        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actionsPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
@@ -429,6 +428,9 @@ class _OrderScreenState extends State<OrderScreen> {
       _vatPercent = 8;
       _selectedOrderType = appOrderTypes[0];
     });
+
+    // In phiếu tạm tính
+    _printBill(savedOrder ?? newOrder);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -873,20 +875,20 @@ class _OrderScreenState extends State<OrderScreen> {
         : (method == 'Chuyển khoản' ? 'qr_code' : 'card');
 
     SavedOrder localCompletedOrder() => SavedOrder(
-          id: order.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-          shiftId: order.shiftId,
-          tableOrCustomer: order.tableOrCustomer,
-          items: List<CartItem>.from(order.items),
-          dateTime: DateTime.now(),
-          subtotal: order.subtotal,
-          discountAmount: order.discountAmount,
-          vatRate: order.vatRate,
-          vatAmount: order.vatAmount,
-          totalAmount: order.totalAmount,
-          paymentMethod: paymentMethod,
-          source: order.source,
-          status: OrderStatus.completed,
-        );
+      id: order.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      shiftId: order.shiftId,
+      tableOrCustomer: order.tableOrCustomer,
+      items: List<CartItem>.from(order.items),
+      dateTime: DateTime.now(),
+      subtotal: order.subtotal,
+      discountAmount: order.discountAmount,
+      vatRate: order.vatRate,
+      vatAmount: order.vatAmount,
+      totalAmount: order.totalAmount,
+      paymentMethod: paymentMethod,
+      source: order.source,
+      status: OrderStatus.completed,
+    );
 
     final idInt = int.tryParse(order.id ?? '');
     final isNewLocalOrder = idInt == null || idInt > 1000000000000;
@@ -912,6 +914,9 @@ class _OrderScreenState extends State<OrderScreen> {
       globalPendingOrders.removeWhere((o) => o.id == order.id);
       globalCompletedOrders.insert(0, completedOrder);
     });
+
+    // In hóa đơn tự động khi hoàn tất thanh toán
+    _printBill(completedOrder);
 
     if (!savedToServer && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1329,7 +1334,7 @@ class _OrderScreenState extends State<OrderScreen> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () => debugPrint('In...'),
+                      onPressed: () => _printBill(order),
                       child: const Text(
                         'IN HÓA ĐƠN',
                         style: TextStyle(color: Colors.brown, fontSize: 16),
@@ -1481,168 +1486,173 @@ class _OrderScreenState extends State<OrderScreen> {
                         ],
                       ),
                     ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Giảm giá (%):',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: discountController,
-                    onTap: () => discountController.selection = TextSelection(
-                      baseOffset: 0,
-                      extentOffset: discountController.text.length,
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Giảm giá (%):',
+                      style: TextStyle(fontWeight: FontWeight.w500),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(r'^\d+\.?\d{0,2}'),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: discountController,
+                      onTap: () => discountController.selection = TextSelection(
+                        baseOffset: 0,
+                        extentOffset: discountController.text.length,
                       ),
-                    ],
-                    decoration: InputDecoration(
-                      suffixText: '%',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
                       ),
-                      hintText: '0 - 100',
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}'),
+                        ),
+                      ],
+                      decoration: InputDecoration(
+                        suffixText: '%',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        hintText: '0 - 100',
+                      ),
+                      onChanged: (v) {
+                        if (v.length > 1 &&
+                            v.startsWith('0') &&
+                            !v.startsWith('0.')) {
+                          discountController.text = v.substring(1);
+                          discountController.selection =
+                              TextSelection.fromPosition(
+                                TextPosition(
+                                  offset: discountController.text.length,
+                                ),
+                              );
+                          v = discountController.text;
+                        }
+                        final val = double.tryParse(v) ?? 0;
+                        if (val > 100) {
+                          discountController.text = '100';
+                          discountController.selection =
+                              TextSelection.fromPosition(
+                                const TextPosition(offset: 3),
+                              );
+                        }
+                        setDialogState(() {});
+                      },
                     ),
-                    onChanged: (v) {
-                      if (v.length > 1 &&
-                          v.startsWith('0') &&
-                          !v.startsWith('0.')) {
-                        discountController.text = v.substring(1);
-                        discountController.selection =
-                            TextSelection.fromPosition(
-                          TextPosition(offset: discountController.text.length),
-                        );
-                        v = discountController.text;
-                      }
-                      final val = double.tryParse(v) ?? 0;
-                      if (val > 100) {
-                        discountController.text = '100';
-                        discountController.selection =
-                            TextSelection.fromPosition(
-                          const TextPosition(offset: 3),
-                        );
-                      }
-                      setDialogState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [5, 10, 15, 20, 50]
-                        .map(
-                          (pct) => SizedBox(
-                            width: 75,
-                            height: 45,
-                            child: ActionChip(
-                              padding: EdgeInsets.zero,
-                              label: Center(
-                                child: Text(
-                                  '$pct%',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [5, 10, 15, 20, 50]
+                          .map(
+                            (pct) => SizedBox(
+                              width: 75,
+                              height: 45,
+                              child: ActionChip(
+                                padding: EdgeInsets.zero,
+                                label: Center(
+                                  child: Text(
+                                    '$pct%',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
                                   ),
                                 ),
+                                onPressed: () {
+                                  discountController.text = pct.toString();
+                                  setDialogState(() {});
+                                },
                               ),
-                              onPressed: () {
-                                discountController.text = pct.toString();
-                                setDialogState(() {});
-                              },
                             ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Ghi chú món:',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: noteController,
-                    maxLines: 2,
-                    maxLength: 100,
-                    decoration: InputDecoration(
-                      hintText: 'VD: ít đường, không đá...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      counterText: '${noteController.text.length}/100',
+                          )
+                          .toList(),
                     ),
-                    onChanged: (v) => setDialogState(() {}),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Thành tiền:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Ghi chú món:',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: noteController,
+                      maxLines: 2,
+                      maxLength: 100,
+                      decoration: InputDecoration(
+                        hintText: 'VD: ít đường, không đá...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
+                        counterText: '${noteController.text.length}/100',
                       ),
-                      Text(
-                        currencyFormat.format(finalPrice),
-                        style: const TextStyle(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                      onChanged: (v) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Thành tiền:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        Text(
+                          currencyFormat.format(finalPrice),
+                          style: const TextStyle(
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    final discount =
-                        (double.tryParse(discountController.text) ?? 0).clamp(
-                          0.0,
-                          100.0,
-                        );
-                    Navigator.pop(context);
-                    _addToCartWithDiscount(
-                      product,
-                      discount,
-                      noteController.text.trim(),
-                    );
-                  },
-                  icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
-                  label: const Text(
-                    'THÊM VÀO ĐƠN',
-                    style: TextStyle(
+            actions: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      final discount =
+                          (double.tryParse(discountController.text) ?? 0).clamp(
+                            0.0,
+                            100.0,
+                          );
+                      Navigator.pop(context);
+                      _addToCartWithDiscount(
+                        product,
+                        discount,
+                        noteController.text.trim(),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.add_shopping_cart,
                       color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    label: const Text(
+                      'THÊM VÀO ĐƠN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
           );
         },
       ),
@@ -1818,8 +1828,10 @@ class _OrderScreenState extends State<OrderScreen> {
                           discountController.text = v.substring(1);
                           discountController.selection =
                               TextSelection.fromPosition(
-                            TextPosition(offset: discountController.text.length),
-                          );
+                                TextPosition(
+                                  offset: discountController.text.length,
+                                ),
+                              );
                           v = discountController.text;
                         }
                         final val = double.tryParse(v) ?? 0;
@@ -1827,8 +1839,8 @@ class _OrderScreenState extends State<OrderScreen> {
                           discountController.text = '100';
                           discountController.selection =
                               TextSelection.fromPosition(
-                            const TextPosition(offset: 3),
-                          );
+                                const TextPosition(offset: 3),
+                              );
                         }
                         setDialogState(() {});
                       },
@@ -1909,11 +1921,9 @@ class _OrderScreenState extends State<OrderScreen> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          final discount = (double.tryParse(
-                                        discountController.text,
-                                      ) ??
-                                      0)
-                              .clamp(0.0, 100.0);
+                          final discount =
+                              (double.tryParse(discountController.text) ?? 0)
+                                  .clamp(0.0, 100.0);
                           Navigator.pop(dialogCtx);
                           _updateCartItem(
                             cartIndex,
@@ -2246,8 +2256,14 @@ class _OrderScreenState extends State<OrderScreen> {
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.green,
                                             foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
                                           ),
                                           icon: const Icon(
                                             Icons.check_circle,
@@ -2269,8 +2285,14 @@ class _OrderScreenState extends State<OrderScreen> {
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.blue,
                                             foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
                                           ),
                                           icon: const Icon(
                                             Icons.edit,
@@ -2289,8 +2311,14 @@ class _OrderScreenState extends State<OrderScreen> {
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.red,
                                             foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
                                           ),
                                           icon: const Icon(
                                             Icons.cancel,
@@ -2413,7 +2441,10 @@ class _OrderScreenState extends State<OrderScreen> {
                     (cat) => Padding(
                       padding: const EdgeInsets.only(right: 12),
                       child: ChoiceChip(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                         label: Text(
                           cat,
                           style: const TextStyle(
