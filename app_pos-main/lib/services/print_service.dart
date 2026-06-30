@@ -198,37 +198,43 @@ class PrintService {
   }
 
   static Future<void> _printItemsTable(List<CartItem> items) async {
-    const separator = '--------------------------------';
+    const separator = '------------------------------';
+    const nameWidth = 14;
+    const qtyWidth = 3;
+    const totalWidth = 11;
+
     await SunmiPrinter.printText(separator);
     await SunmiPrinter.printText(
-      '${_fitRight('SL', 4)} ${_fitLeft('Tên món', 14)} ${_fitRight('Thành tiền', 12)}',
+      '${_fitLeft('Ten mon', nameWidth)} '
+      '${_fitRight('SL', qtyWidth)} '
+      '${_fitRight('Tien', totalWidth)}',
       style: SunmiTextStyle(bold: true),
     );
     await SunmiPrinter.printText(separator);
 
     for (final item in items) {
-      final nameLines = _wrapText(item.product.name, 14);
+      final nameLines = _wrapText(item.product.name, nameWidth);
       final totalText = currencyFormat.format(item.total);
 
       await SunmiPrinter.printText(
-        '${_fitRight('${item.quantity}', 4)} '
-        '${_fitLeft(nameLines.first, 14)} '
-        '${_fitRight(totalText, 12)}',
+        '${_fitLeft(nameLines.first, nameWidth)} '
+        '${_fitRight('${item.quantity}', qtyWidth)} '
+        '${_fitRight(totalText, totalWidth)}',
       );
 
       for (final line in nameLines.skip(1)) {
-        await SunmiPrinter.printText('     ${_fitLeft(line, 14)}');
+        await SunmiPrinter.printText(_fitLeft(line, nameWidth));
       }
 
       if (item.note.isNotEmpty) {
         await SunmiPrinter.printText(
-          '     Ghi chú: ${item.note}',
+          'Ghi chú: ${item.note}',
           style: SunmiTextStyle(fontSize: 20),
         );
       }
       if (item.discountPercent > 0) {
         await SunmiPrinter.printText(
-          '     Giảm giá: ${item.discountPercent.toStringAsFixed(0)}%',
+          'Giảm giá: ${item.discountPercent.toStringAsFixed(0)}%',
           style: SunmiTextStyle(fontSize: 20),
         );
       }
