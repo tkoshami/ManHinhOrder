@@ -166,6 +166,91 @@ class SupabaseService {
     }
   }
 
+  static Future<SavedOrder?> savePaidPosOrder(SavedOrder order) async {
+    try {
+      final response = await _supabase.rpc(
+        'create_paid_pos_order',
+        params: {
+          'p_items': order.items
+              .map(
+                (item) => {
+                  'product_id': item.product.id,
+                  'name': item.product.name,
+                  'price': item.product.price,
+                  'quantity': item.quantity,
+                  'discount_percent': item.discountPercent,
+                  'note': item.note,
+                },
+              )
+              .toList(),
+          'p_subtotal_amount': order.subtotal,
+          'p_discount_amount': order.discountAmount,
+          'p_vat_rate': order.vatRate,
+          'p_vat_amount': order.vatAmount,
+          'p_total_amount': order.totalAmount,
+          'p_payment_method': order.paymentMethod,
+        },
+      );
+
+      if (response is List && response.isNotEmpty) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response.first));
+      }
+      if (response is Map) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response));
+      }
+    } catch (e) {
+      print('Loi luu don POS bang RPC: $e');
+    }
+
+    return saveOrder(order);
+  }
+
+  static Future<SavedOrder?> savePendingPosOrder(SavedOrder order) async {
+    final parsedId = int.tryParse(order.id ?? '');
+    final orderId = parsedId != null && parsedId < 1000000000000
+        ? parsedId
+        : null;
+
+    try {
+      final response = await _supabase.rpc(
+        'save_pending_pos_order',
+        params: {
+          'p_order_id': orderId,
+          'p_items': order.items
+              .map(
+                (item) => {
+                  'product_id': item.product.id,
+                  'name': item.product.name,
+                  'price': item.product.price,
+                  'quantity': item.quantity,
+                  'discount_percent': item.discountPercent,
+                  'note': item.note,
+                },
+              )
+              .toList(),
+          'p_subtotal_amount': order.subtotal,
+          'p_discount_amount': order.discountAmount,
+          'p_vat_rate': order.vatRate,
+          'p_vat_amount': order.vatAmount,
+          'p_total_amount': order.totalAmount,
+          'p_payment_method': order.paymentMethod,
+          'p_table_number': order.tableOrCustomer,
+        },
+      );
+
+      if (response is List && response.isNotEmpty) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response.first));
+      }
+      if (response is Map) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response));
+      }
+      return null;
+    } catch (e) {
+      print('Loi luu don tam tinh len database: $e');
+      return null;
+    }
+  }
+
   static Future<SavedOrder?> completePendingOrder(
     SavedOrder order,
     String paymentMethod,
@@ -194,31 +279,52 @@ class SupabaseService {
     }
   }
 
-  static Future<bool> cancelPendingOrder(SavedOrder order) async {
-    if (order.id == null) return false;
+  static Future<SavedOrder?> cancelPendingOrder(SavedOrder order) async {
+    if (order.id == null) return null;
 
     try {
-      await _supabase.rpc(
+      final response = await _supabase.rpc(
         'cancel_pending_order',
         params: {'p_order_id': int.tryParse(order.id!)},
       );
-      return true;
+      if (response is List && response.isNotEmpty) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response.first));
+      }
+      if (response is Map) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response));
+      }
+      return null;
     } catch (e) {
       print('Lỗi hủy đơn đang chờ: $e');
-      return false;
+      return null;
+    }
+  }
+
+  static Future<List<SavedOrder>> getOrderHistory({int limit = 200}) async {
+    try {
+      final response = await _supabase.rpc(
+        'get_order_history',
+        params: {'p_limit': limit},
+      );
+
+      return (response as List)
+          .map((json) => SavedOrder.fromJson(Map<String, dynamic>.from(json)))
+          .toList();
+    } catch (e) {
+      print('Error loading order history: $e');
+      return [];
     }
   }
 
   static Future<List<SavedOrder>> getPendingOrders() async {
     try {
-      final response = await _supabase
-          .from('orders')
-          .select()
-          .eq('status', 'pending')
-          .order('created_at', ascending: false);
+      final response = await _supabase.rpc(
+        'get_pending_orders',
+        params: {'p_limit': 200},
+      );
 
       return (response as List)
-          .map((json) => SavedOrder.fromJson(json))
+          .map((json) => SavedOrder.fromJson(Map<String, dynamic>.from(json)))
           .toList();
     } catch (e) {
       print('Lỗi lấy danh sách đơn đang chờ: $e');

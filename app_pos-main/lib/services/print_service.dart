@@ -30,7 +30,7 @@ class PrintService {
       style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, fontSize: 24),
     );
 
-    await SunmiPrinter.lineWrap(1);
+    await SunmiPrinter.lineWrap(2);
     await SunmiPrinter.printText(
       'HÓA ĐƠN THANH TOÁN',
       style: SunmiTextStyle(
@@ -45,17 +45,17 @@ class PrintService {
     await SunmiPrinter.printText(
       'Ngày: ${DateFormat('dd/MM/yyyy HH:mm').format(order.dateTime)}',
     );
-    await SunmiPrinter.printText('Loại: ${order.tableOrCustomer}');
+    await SunmiPrinter.printText('Hình thức: ${order.tableOrCustomer}');
     await SunmiPrinter.printText(
-      'PTTT: ${_getPaymentMethodName(order.paymentMethod)}',
+      'Phương thức thanh toán: ${_getPaymentMethodName(order.paymentMethod)}',
     );
 
     await SunmiPrinter.line();
     await SunmiPrinter.printRow(
       cols: [
-        _column('Tên món', 15, SunmiPrintAlign.LEFT),
-        _column('SL', 5, SunmiPrintAlign.CENTER),
-        _column('T.Tiền', 10, SunmiPrintAlign.RIGHT),
+        _column('Tên món', 15, SunmiPrintAlign.LEFT, bold: true),
+        _column('SL', 5, SunmiPrintAlign.CENTER, bold: true),
+        _column('Thành tiền', 10, SunmiPrintAlign.RIGHT, bold: true),
       ],
     );
     await SunmiPrinter.line();
@@ -64,7 +64,7 @@ class PrintService {
       await SunmiPrinter.printRow(
         cols: [
           _column(item.product.name, 15, SunmiPrintAlign.LEFT),
-          _column('x${item.quantity}', 5, SunmiPrintAlign.CENTER),
+          _column('${item.quantity}', 5, SunmiPrintAlign.CENTER),
           _column(currencyFormat.format(item.total), 10, SunmiPrintAlign.RIGHT),
         ],
       );
@@ -123,6 +123,7 @@ class PrintService {
     );
 
     if (order.paymentMethod == 'qr_code') {
+      await SunmiPrinter.lineWrap(1);
       await _printVietQR(order);
     } else if (order.id != null) {
       await SunmiPrinter.lineWrap(1);
@@ -192,7 +193,7 @@ class PrintService {
       );
       await SunmiPrinter.printText(
         'Nội dung: ${order.id ?? ''}',
-        style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, italic: true, fontSize: 22),
+        style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, fontSize: 22),
       );
 
       // 4. In mã QR thanh toán
@@ -220,18 +221,19 @@ class PrintService {
     return SunmiColumn(
       text: text,
       width: width,
-      style: SunmiTextStyle(align: align, bold: bold),
+      style: SunmiTextStyle(align: align, bold: bold
+      ),
     );
   }
 
   static String _getPaymentMethodName(String method) {
     switch (method) {
       case 'cash':
-        return 'Tien mat';
+        return 'Tiền mặt';
       case 'qr_code':
-        return 'Chuyen khoan';
+        return 'Chuyển khoản';
       case 'card':
-        return 'Quet the';
+        return 'Quẹt thẻ';
       default:
         return method;
     }

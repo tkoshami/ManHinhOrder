@@ -17,7 +17,7 @@ final List<Product> defaultProducts = [
 ];
 
 final List<String> appCategories = ['Tất cả', 'Cà phê', 'Trà', 'Bánh', 'Đồ ăn', 'Khác'];
-final List<String> appOrderTypes = ['Mang về', 'Tại quán', 'Giao hàng'];
+final List<String> appOrderTypes = ['Mang đi', 'Tại chỗ', 'Giao hàng'];
 
 // VietQR Configuration
 const String vietQrBankId = '970432'; // VPBank

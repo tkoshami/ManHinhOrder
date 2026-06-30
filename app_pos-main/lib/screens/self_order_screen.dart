@@ -283,7 +283,7 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
       vatAmount: _subtotal * 0.08,
       totalAmount: _total,
       paymentMethod: 'qr_code',
-      tableOrCustomer: 'Khách QR (Mang về)',
+      tableOrCustomer: 'Khách QR (Mang đi)',
       source: OrderSource.qrCode,
       status: OrderStatus.pending,
     );

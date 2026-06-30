@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
-import 'package:pos_fnb/services/print_service.dart';
+import 'package:pos_fnb/services/supabase_service.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -14,52 +14,314 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
-  List<SavedOrder> get _allOrders => globalCompletedOrders;
-  List<SavedOrder> _byMethod(String method) => globalCompletedOrders
-      .where(
-        (o) => o.paymentMethod == method && o.status == OrderStatus.completed,
-      )
-      .toList();
+  bool _isLoadingHistory = false;
+  DateTime? _startDate;
+  DateTime? _endDate;
+  final Set<String> _selectedMethods = {'cash', 'qr_code', 'card'};
 
-  double _sumTotal(List<SavedOrder> orders) =>
-      orders.fold(0, (sum, o) => sum + o.total);
+  List<SavedOrder> get _filteredOrders {
+    var orders = globalCompletedOrders;
+    // Filter by Date
+    if (_startDate != null) {
+      final start =
+          DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
+      orders = orders
+          .where((o) =>
+              o.dateTime.isAfter(start.subtract(const Duration(seconds: 1))))
+          .toList();
+    }
+    if (_endDate != null) {
+      final end = DateTime(
+          _endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+      orders = orders
+          .where((o) => o.dateTime.isBefore(end.add(const Duration(seconds: 1))))
+          .toList();
+    }
+    // Filter by Method
+    orders = orders.where((o) {
+      return _selectedMethods.contains(o.paymentMethod);
+    }).toList();
 
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Lịch sử thanh toán',
-            style: TextStyle(fontWeight: FontWeight.bold),
+    return orders;
+  }
+
+  List<SavedOrder> get _allOrders => _filteredOrders;
+
+  Future<void> _pickDate(bool isStart) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: (isStart ? _startDate : _endDate) ?? DateTime.now(),
+      firstDate: DateTime(2022),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Colors.orangeAccent,
+              onPrimary: Colors.white,
+              onSurface: Colors.black87,
+            ),
           ),
-          backgroundColor: Colors.orangeAccent,
-          bottom: const TabBar(
-            indicatorColor: Colors.white,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            tabs: [
-              Tab(icon: Icon(Icons.receipt_long), text: 'Đơn hàng'),
-              Tab(icon: Icon(Icons.payments), text: 'Loại thanh toán'),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _startDate = picked;
+          if (_endDate != null && _startDate!.isAfter(_endDate!)) {
+            _endDate = _startDate;
+          }
+        } else {
+          _endDate = picked;
+          if (_startDate != null && _endDate!.isBefore(_startDate!)) {
+            _startDate = _endDate;
+          }
+        }
+      });
+    }
+  }
+
+  void _clearFilter() {
+    setState(() {
+      _startDate = null;
+      _endDate = null;
+      _selectedMethods.clear();
+      _selectedMethods.addAll(['cash', 'qr_code', 'card']);
+    });
+  }
+
+  void _toggleMethod(String method) {
+    setState(() {
+      if (_selectedMethods.contains(method)) {
+        _selectedMethods.remove(method);
+      } else {
+        _selectedMethods.add(method);
+      }
+    });
+  }
+
+  Widget _buildFilterBar() {
+    final df = DateFormat('dd/MM/yyyy');
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Từ',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _pickDate(true),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today,
+                            size: 14, color: Colors.orange),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _startDate == null ? 'Bắt đầu' : df.format(_startDate!),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _startDate == null
+                                  ? Colors.grey
+                                  : Colors.black87,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'đến',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _pickDate(false),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today,
+                            size: 14, color: Colors.orange),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _endDate == null ? 'Kết thúc' : df.format(_endDate!),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color:
+                                  _endDate == null ? Colors.grey : Colors.black87,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (_startDate != null || _endDate != null || _selectedMethods.length < 3)
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.red, size: 20),
+                  onPressed: _clearFilter,
+                  tooltip: 'Đặt lại bộ lọc',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
             ],
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Text(
+                'Thanh toán:',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _methodChip('Tiền mặt', 'cash', Colors.green)),
+                    const SizedBox(width: 6),
+                    Expanded(child: _methodChip('C.Khoản', 'qr_code', Colors.blue)),
+                    const SizedBox(width: 6),
+                    Expanded(child: _methodChip('Thẻ', 'card', Colors.orange)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _methodChip(String label, String method, Color color) {
+    final isSelected = _selectedMethods.contains(method);
+    return InkWell(
+      onTap: () => _toggleMethod(method),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.12) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade300,
+            width: 1,
+          ),
         ),
-        body: TabBarView(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _OrderHistoryTab(
-              orders: _allOrders,
-              currencyFormat: currencyFormat,
-              onRefresh: () => setState(() {}),
-            ),
-            _PaymentMethodTab(
-              currencyFormat: currencyFormat,
-              byMethod: _byMethod,
-              sumTotal: _sumTotal,
-              onRefresh: () => setState(() {}),
+            if (isSelected)
+              Icon(Icons.check, size: 12, color: color)
+            else
+              const SizedBox(width: 12),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: isSelected ? color : Colors.grey.shade700,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrderHistory();
+  }
+
+  Future<void> _loadOrderHistory() async {
+    setState(() {
+      _isLoadingHistory = true;
+    });
+
+    final orders = await SupabaseService.getOrderHistory();
+    if (!mounted) return;
+
+    setState(() {
+      globalCompletedOrders
+        ..clear()
+        ..addAll(orders);
+      _isLoadingHistory = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Lịch sử thanh toán',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.orangeAccent,
+        actions: [
+          IconButton(
+            tooltip: 'Tải lại',
+            onPressed: _isLoadingHistory ? null : _loadOrderHistory,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _buildFilterBar(),
+          Expanded(
+            child: _isLoadingHistory && globalCompletedOrders.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : _OrderHistoryTab(
+                    orders: _allOrders,
+                    currencyFormat: currencyFormat,
+                    onRefresh: () => setState(() {}),
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -68,9 +330,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 void showOrderDetail(
   BuildContext context,
   SavedOrder order,
-  NumberFormat fmt, {
-  VoidCallback? onDeleted,
-}) {
+  NumberFormat fmt,
+) {
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -195,70 +456,28 @@ void showOrderDetail(
           ),
         ),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       actions: [
-        TextButton.icon(
-          onPressed: () {
-            PrintService.printBill(order);
-            ScaffoldMessenger.of(ctx).showSnackBar(
-              const SnackBar(
-                content: Text('Đang in hóa đơn...'),
-                backgroundColor: Colors.blue,
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-            );
-          },
-          icon: const Icon(Icons.print, color: Colors.blue, size: 18),
-          label: const Text('In hóa đơn', style: TextStyle(color: Colors.blue)),
-        ),
-        TextButton.icon(
-          onPressed: () => _confirmDeleteOrder(ctx, order, onDeleted),
-          icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-          label: const Text(
-            'Xóa khỏi lịch sử',
-            style: TextStyle(color: Colors.red),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(ctx),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            child: const Text(
+              'Đóng',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-          child: const Text('Đóng', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    ),
-  );
-}
-
-void _confirmDeleteOrder(
-  BuildContext detailCtx,
-  SavedOrder order,
-  VoidCallback? onDeleted,
-) {
-  showDialog(
-    context: detailCtx,
-    builder: (confirmCtx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Xác nhận xóa'),
-      content: Text(
-        'Bạn có chắc chắn muốn xóa đơn hàng "${order.id}" khỏi lịch sử?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(confirmCtx),
-          child: const Text('Hủy'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            globalCompletedOrders.remove(order);
-            Navigator.pop(confirmCtx);
-            Navigator.pop(detailCtx);
-            onDeleted?.call();
-          },
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-          child: const Text('XÓA', style: TextStyle(color: Colors.white)),
         ),
       ],
     ),
@@ -329,9 +548,7 @@ class _OrderHistoryTabState extends State<_OrderHistoryTab> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    _selectedStatus == OrderStatus.completed
-                        ? 'Chưa có đơn hàng nào'
-                        : 'Chưa có đơn bị hủy',
+                    'Không có đơn lưu trong lịch sử',
                     style: const TextStyle(color: Colors.grey, fontSize: 16),
                   ),
                 ],
@@ -396,7 +613,6 @@ class _OrderHistoryTabState extends State<_OrderHistoryTab> {
                     context,
                     order,
                     widget.currencyFormat,
-                    onDeleted: widget.onRefresh,
                   ),
                 );
               },
@@ -575,7 +791,6 @@ class _MethodList extends StatelessWidget {
                 context,
                 orders[index],
                 currencyFormat,
-                onDeleted: onRefresh,
               ),
             ),
           ),
@@ -600,6 +815,9 @@ class _OrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCancelledDraft =
+        order.status == OrderStatus.cancelled &&
+        order.source == OrderSource.posStaff;
     final String methodName;
     final IconData methodIcon;
     final Color methodColor;
@@ -648,6 +866,25 @@ class _OrderTile extends StatelessWidget {
               style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ),
+          if (isCancelledDraft) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Text(
+                'Tạm tính',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.orange.shade800,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
       subtitle: Row(

@@ -104,7 +104,7 @@ class SavedOrder {
     required this.vatAmount,
     required this.totalAmount,
     required this.paymentMethod,
-    this.tableOrCustomer = 'Mang về',
+    this.tableOrCustomer = 'Mang đi',
     this.source = OrderSource.posStaff,
     this.status = OrderStatus.pending,
   });
@@ -247,7 +247,11 @@ class SavedOrder {
       vatAmount: (json['vat_amount'] as num).toDouble(),
       totalAmount: (json['total_amount'] as num).toDouble(),
       paymentMethod: json['payment_method'],
-      tableOrCustomer: json['table_or_customer'] ?? 'Mang về',
+      tableOrCustomer:
+          json['table_or_customer'] ??
+          json['table_number'] ??
+          json['customer_name'] ??
+          'Mang đi',
       source: _sourceFromDatabase(json['source']),
       status: _statusFromDatabase(json['status']),
     );
