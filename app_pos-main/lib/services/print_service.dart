@@ -30,7 +30,7 @@ class PrintService {
       style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, fontSize: 24),
     );
 
-    await SunmiPrinter.lineWrap(2);
+    await _printBlankLine();
     await SunmiPrinter.printText(
       'HÓA ĐƠN THANH TOÁN',
       style: SunmiTextStyle(
@@ -47,43 +47,11 @@ class PrintService {
     );
     await SunmiPrinter.printText('Hình thức: ${order.tableOrCustomer}');
     await SunmiPrinter.printText(
-      'Phương thức thanh toán: ${_getPaymentMethodName(order.paymentMethod)}',
+      'PTTT: ${_getPaymentMethodName(order.paymentMethod)}',
     );
 
-    await SunmiPrinter.line();
-    await SunmiPrinter.printRow(
-      cols: [
-        _column('Tên món', 15, SunmiPrintAlign.LEFT, bold: true),
-        _column('SL', 5, SunmiPrintAlign.CENTER, bold: true),
-        _column('Thành tiền', 10, SunmiPrintAlign.RIGHT, bold: true),
-      ],
-    );
-    await SunmiPrinter.line();
+    await _printItemsTable(order.items);
 
-    for (final item in order.items) {
-      await SunmiPrinter.printRow(
-        cols: [
-          _column(item.product.name, 15, SunmiPrintAlign.LEFT),
-          _column('${item.quantity}', 5, SunmiPrintAlign.CENTER),
-          _column(currencyFormat.format(item.total), 10, SunmiPrintAlign.RIGHT),
-        ],
-      );
-
-      if (item.note.isNotEmpty) {
-        await SunmiPrinter.printText(
-          ' - Ghi chú: ${item.note}',
-          style: SunmiTextStyle(fontSize: 20),
-        );
-      }
-      if (item.discountPercent > 0) {
-        await SunmiPrinter.printText(
-          ' - Giảm giá: ${item.discountPercent.toStringAsFixed(0)}%',
-          style: SunmiTextStyle(fontSize: 20),
-        );
-      }
-    }
-
-    await SunmiPrinter.line();
     await SunmiPrinter.printRow(
       cols: [
         _column('Tạm tính:', 15, SunmiPrintAlign.LEFT),
@@ -116,14 +84,14 @@ class PrintService {
       ],
     );
 
-    await SunmiPrinter.lineWrap(2);
+    await _printBlankLine();
     await SunmiPrinter.printText(
       'Cảm ơn Quý khách. Hẹn gặp lại!',
       style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, italic: true),
     );
 
     if (order.paymentMethod == 'qr_code') {
-      await SunmiPrinter.lineWrap(1);
+      await _printBlankLine();
       await _printVietQR(order);
     } else if (order.id != null) {
       await SunmiPrinter.lineWrap(1);
@@ -221,9 +189,93 @@ class PrintService {
     return SunmiColumn(
       text: text,
       width: width,
-      style: SunmiTextStyle(align: align, bold: bold
-      ),
+      style: SunmiTextStyle(align: align, bold: bold),
     );
+  }
+
+  static Future<void> _printBlankLine() async {
+    await SunmiPrinter.printText(' ');
+  }
+
+  static Future<void> _printItemsTable(List<CartItem> items) async {
+    const separator = '--------------------------------';
+    await SunmiPrinter.printText(separator);
+    await SunmiPrinter.printText(
+      '${_fitRight('SL', 4)} ${_fitLeft('Tên món', 14)} ${_fitRight('Thành tiền', 12)}',
+      style: SunmiTextStyle(bold: true),
+    );
+    await SunmiPrinter.printText(separator);
+
+    for (final item in items) {
+      final nameLines = _wrapText(item.product.name, 14);
+      final totalText = currencyFormat.format(item.total);
+
+      await SunmiPrinter.printText(
+        '${_fitRight('${item.quantity}', 4)} '
+        '${_fitLeft(nameLines.first, 14)} '
+        '${_fitRight(totalText, 12)}',
+      );
+
+      for (final line in nameLines.skip(1)) {
+        await SunmiPrinter.printText('     ${_fitLeft(line, 14)}');
+      }
+
+      if (item.note.isNotEmpty) {
+        await SunmiPrinter.printText(
+          '     Ghi chú: ${item.note}',
+          style: SunmiTextStyle(fontSize: 20),
+        );
+      }
+      if (item.discountPercent > 0) {
+        await SunmiPrinter.printText(
+          '     Giảm giá: ${item.discountPercent.toStringAsFixed(0)}%',
+          style: SunmiTextStyle(fontSize: 20),
+        );
+      }
+    }
+
+    await SunmiPrinter.printText(separator);
+  }
+
+  static List<String> _wrapText(String text, int width) {
+    final words = text.trim().split(RegExp(r'\s+'));
+    final lines = <String>[];
+    var current = '';
+
+    for (final word in words) {
+      if (word.length > width) {
+        if (current.isNotEmpty) {
+          lines.add(current);
+          current = '';
+        }
+        for (var i = 0; i < word.length; i += width) {
+          final end = i + width < word.length ? i + width : word.length;
+          lines.add(word.substring(i, end));
+        }
+        continue;
+      }
+
+      final candidate = current.isEmpty ? word : '$current $word';
+      if (candidate.length <= width) {
+        current = candidate;
+      } else {
+        lines.add(current);
+        current = word;
+      }
+    }
+
+    if (current.isNotEmpty) lines.add(current);
+    return lines.isEmpty ? [''] : lines;
+  }
+
+  static String _fitLeft(String text, int width) {
+    final value = text.length > width ? text.substring(0, width) : text;
+    return value.padRight(width);
+  }
+
+  static String _fitRight(String text, int width) {
+    final value = text.length > width ? text.substring(text.length - width) : text;
+    return value.padLeft(width);
   }
 
   static String _getPaymentMethodName(String method) {
