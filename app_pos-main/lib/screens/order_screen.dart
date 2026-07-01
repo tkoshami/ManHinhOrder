@@ -165,8 +165,8 @@ class _OrderScreenState extends State<OrderScreen> {
     }
   }
 
-  void _printBill(SavedOrder order) {
-    PrintService.printBill(order);
+  void _printBill(SavedOrder order, {double? receivedAmount}) {
+    PrintService.printBill(order, receivedAmount: receivedAmount);
 
     // Xóa ngay lập tức các snackbar cũ để không bị dồn hàng chờ
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
@@ -846,6 +846,11 @@ class _OrderScreenState extends State<OrderScreen> {
                                             : 'card');
                                   _printBill(
                                     order.copyWith(paymentMethod: pMethod),
+                                    receivedAmount:
+                                        pMethod == 'cash' &&
+                                            receivedAmount >= order.totalAmount
+                                        ? receivedAmount
+                                        : null,
                                   );
                                 },
                                 icon: const Icon(Icons.print),
@@ -1107,7 +1112,7 @@ class _OrderScreenState extends State<OrderScreen> {
     });
 
     // In hóa đơn tự động khi hoàn tất thanh toán
-    _printBill(completedOrder);
+    _printBill(completedOrder, receivedAmount: receivedAmount);
 
     _showReceiptDialogForOrder(
       completedOrder,

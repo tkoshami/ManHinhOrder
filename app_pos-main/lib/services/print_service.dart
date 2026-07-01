@@ -12,7 +12,10 @@ class PrintService {
     symbol: 'd',
   );
 
-  static Future<void> printBill(SavedOrder order) async {
+  static Future<void> printBill(
+    SavedOrder order, {
+    double? receivedAmount,
+  }) async {
     await SunmiPrinter.printText(
       'BÁNH MÌ ZONZON',
       style: SunmiTextStyle(
@@ -84,6 +87,18 @@ class PrintService {
       ],
     );
 
+    if (order.paymentMethod == 'cash') {
+      final cashReceived = receivedAmount ?? order.totalAmount;
+      final changeAmount = cashReceived - order.totalAmount;
+
+      await SunmiPrinter.printText(
+        'Tiền khách đưa: ${currencyFormat.format(cashReceived)}',
+      );
+      await SunmiPrinter.printText(
+        'Tiền thừa trả khách: ${currencyFormat.format(changeAmount)}',
+      );
+    }
+
     await _printBlankLine();
     await SunmiPrinter.printText(
       'Cảm ơn Quý khách. Hẹn gặp lại!',
@@ -93,7 +108,7 @@ class PrintService {
     if (order.paymentMethod == 'qr_code') {
       await _printBlankLine();
       await _printVietQR(order);
-    } else if (order.id != null) {
+    } else if (order.paymentMethod != 'cash' && order.id != null) {
       await SunmiPrinter.lineWrap(1);
       await SunmiPrinter.printQRCode(
         order.id!,
