@@ -503,14 +503,10 @@ class _OrderScreenState extends State<OrderScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          savedOrder != null
-              ? 'Đã xác nhận đơn và lưu vào danh sách chờ!'
-              : 'Đã lưu cục bộ (Lỗi server)',
-        ),
-        backgroundColor: savedOrder != null ? Colors.green : Colors.orange,
-        duration: const Duration(seconds: 4),
+      const SnackBar(
+        content: Text('Đã xác nhận đơn và lưu vào danh sách chờ!'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 4),
       ),
     );
   }
@@ -564,48 +560,51 @@ class _OrderScreenState extends State<OrderScreen> {
                         const SizedBox(height: 20),
                         Row(
                           children: [
-                            _paymentMethodTab(
-                              'Tiền mặt',
-                              Icons.payments_outlined,
-                              selectedMethod == 'Tiền mặt',
-                              () => setDialogState(
+                            _PaymentMethodTab(
+                              title: 'Tiền mặt',
+                              icon: Icons.payments_outlined,
+                              isSelected: selectedMethod == 'Tiền mặt',
+                              onTap: () => setDialogState(
                                 () => selectedMethod = 'Tiền mặt',
                               ),
                             ),
                             const SizedBox(width: 8),
-                            _paymentMethodTab(
-                              'Chuyển khoản',
-                              Icons.account_balance_outlined,
-                              selectedMethod == 'Chuyển khoản',
-                              () => setDialogState(
+                            _PaymentMethodTab(
+                              title: 'Chuyển khoản',
+                              icon: Icons.account_balance_outlined,
+                              isSelected: selectedMethod == 'Chuyển khoản',
+                              onTap: () => setDialogState(
                                 () => selectedMethod = 'Chuyển khoản',
                               ),
                             ),
                             const SizedBox(width: 8),
-                            _paymentMethodTab(
-                              'Thẻ',
-                              Icons.credit_card_outlined,
-                              selectedMethod == 'Thẻ',
-                              () =>
+                            _PaymentMethodTab(
+                              title: 'Thẻ',
+                              icon: Icons.credit_card_outlined,
+                              isSelected: selectedMethod == 'Thẻ',
+                              onTap: () =>
                                   setDialogState(() => selectedMethod = 'Thẻ'),
                             ),
                           ],
                         ),
                         const SizedBox(height: 24),
-                        _paymentInfoRow('Tổng số lượng món:', '$totalQty món'),
-                        _paymentInfoRow(
-                          'Tạm tính:',
-                          currencyFormat.format(order.subtotal),
+                        _PaymentInfoRow(
+                          label: 'Tổng số lượng món:',
+                          value: '$totalQty món',
+                        ),
+                        _PaymentInfoRow(
+                          label: 'Tạm tính:',
+                          value: currencyFormat.format(order.subtotal),
                         ),
                         if (order.vatRate > 0)
-                          _paymentInfoRow(
-                            'Thuế VAT (${order.vatRate.toStringAsFixed(0)}%):',
-                            currencyFormat.format(order.vatAmount),
+                          _PaymentInfoRow(
+                            label: 'Thuế VAT (${order.vatRate.toStringAsFixed(0)}%):',
+                            value: currencyFormat.format(order.vatAmount),
                           ),
                         if (order.discountAmount > 0)
-                          _paymentInfoRow(
-                            'Giảm tiền lẻ:',
-                            currencyFormat.format(order.discountAmount),
+                          _PaymentInfoRow(
+                            label: 'Giảm tiền lẻ:',
+                            value: currencyFormat.format(order.discountAmount),
                             isGrey: true,
                             subtitle: '(Khi thanh toán tiền mặt)',
                           ),
@@ -741,8 +740,8 @@ class _OrderScreenState extends State<OrderScreen> {
                                         ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                              0.02,
+                                            color: Colors.black.withValues(
+                                              alpha: 0.02,
                                             ),
                                             blurRadius: 4,
                                             offset: const Offset(0, 2),
@@ -927,102 +926,7 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  Widget _paymentMethodTab(
-    String title,
-    IconData icon,
-    bool isSelected,
-    VoidCallback onTap,
-  ) {
-    final bool isMobile = MediaQuery.of(context).size.width < 600;
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.green.shade50 : Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? Colors.green.shade400 : Colors.grey.shade300,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isSelected
-                    ? Colors.green.shade700
-                    : Colors.grey.shade600,
-                size: isMobile ? 24 : 28,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: isSelected
-                      ? Colors.green.shade700
-                      : Colors.grey.shade600,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: isMobile ? 12 : 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _paymentInfoRow(
-    String label,
-    String value, {
-    bool isGrey = false,
-    String? subtitle,
-  }) {
-    final bool isMobile = MediaQuery.of(context).size.width < 600;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: isMobile ? 14 : 15,
-                    color: isGrey ? Colors.grey.shade600 : Colors.black87,
-                  ),
-                ),
-                if (subtitle != null)
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: isMobile ? 10 : 11,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isMobile ? 14 : 15,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _finishPayment(
     SavedOrder order,
@@ -1240,7 +1144,10 @@ class _OrderScreenState extends State<OrderScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _infoRowDetail('Hình thức:', order.tableOrCustomer),
+                _InfoRowDetail(
+                  label: 'Hình thức:',
+                  value: order.tableOrCustomer,
+                ),
                 const Divider(height: 32, thickness: 1),
                 ...order.items.map(
                   (item) => Padding(
@@ -1285,14 +1192,14 @@ class _OrderScreenState extends State<OrderScreen> {
                   ),
                 ),
                 const Divider(height: 32, thickness: 1),
-                _infoRowDetail(
-                  'Tạm tính',
-                  currencyFormat.format(order.subtotal),
+                _InfoRowDetail(
+                  label: 'Tạm tính',
+                  value: currencyFormat.format(order.subtotal),
                 ),
                 if (order.vatRate > 0)
-                  _infoRowDetail(
-                    'VAT (${order.vatRate.toStringAsFixed(0)}%)',
-                    currencyFormat.format(order.vatAmount),
+                  _InfoRowDetail(
+                    label: 'VAT (${order.vatRate.toStringAsFixed(0)}%)',
+                    value: currencyFormat.format(order.vatAmount),
                   ),
                 const SizedBox(height: 12),
                 Row(
@@ -1353,230 +1260,9 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  Widget _infoRowDetail(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-            color: Color(0xFF2E1C16),
-          ),
-        ),
-      ],
-    ),
-  );
 
-  Widget _buildReceiptItems(SavedOrder order) {
-    final isCompact = MediaQuery.sizeOf(context).width < 380;
 
-    if (isCompact) {
-      return Column(
-        children: [
-          const Divider(color: Colors.brown, thickness: 0.2),
-          ...order.items.asMap().entries.map((entry) {
-            final index = entry.key + 1;
-            final item = entry.value;
 
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        child: Text(
-                          '$index.',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          item.product.name,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 82),
-                        child: Text(
-                          currencyFormat.format(item.total),
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 24, top: 2),
-                    child: Text(
-                      '${currencyFormat.format(item.product.price)} x ${item.quantity}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
-                  if (item.discountPercent > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 24, top: 2),
-                      child: Text(
-                        '-${item.discountPercent.toStringAsFixed(0)}%',
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  const Divider(color: Colors.brown, thickness: 0.1),
-                ],
-              ),
-            );
-          }),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        const Divider(color: Colors.brown, thickness: 0.2),
-        Row(
-          children: const [
-            SizedBox(
-              width: 30,
-              child: Text(
-                'STT',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                'Ten mon',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            ),
-            SizedBox(
-              width: 80,
-              child: Text(
-                'Don gia',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            ),
-            SizedBox(
-              width: 40,
-              child: Text(
-                'SL',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            ),
-            SizedBox(
-              width: 80,
-              child: Text(
-                'T.Tien',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            ),
-          ],
-        ),
-        const Divider(color: Colors.brown, thickness: 0.2),
-        ...order.items.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final item = entry.value;
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 30,
-                      child: Text(
-                        '${idx + 1}',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.product.name,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          if (item.discountPercent > 0)
-                            Text(
-                              '-${item.discountPercent.toStringAsFixed(0)}%',
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontSize: 11,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        currencyFormat.format(item.product.price),
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 40,
-                      child: Text(
-                        'x${item.quantity}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        currencyFormat.format(item.total),
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-                const Divider(color: Colors.brown, thickness: 0.1),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
 
   void _showReceiptDialogForOrder(
     SavedOrder order,
@@ -1623,135 +1309,11 @@ class _OrderScreenState extends State<OrderScreen> {
                   style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
                 const SizedBox(height: 20),
-                if (_isHandheldPos(context))
-                  _buildReceiptItems(order)
-                else ...[
-                const Divider(color: Colors.brown, thickness: 0.2),
-                Row(
-                  children: const [
-                    SizedBox(
-                      width: 30,
-                      child: Text(
-                        'STT',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Tên món',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        'Đơn giá',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 40,
-                      child: Text(
-                        'SL',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        'T.Tiền',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
+                _ReceiptItemsTable(
+                  items: order.items,
+                  isCompact: _isHandheldPos(context),
+                  currencyFormat: currencyFormat,
                 ),
-                const Divider(color: Colors.brown, thickness: 0.2),
-                ...order.items.asMap().entries.map((entry) {
-                  int idx = entry.key;
-                  CartItem item = entry.value;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              width: 30,
-                              child: Text(
-                                '${idx + 1}',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.product.name,
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                  if (item.discountPercent > 0)
-                                    Text(
-                                      '-${item.discountPercent.toStringAsFixed(0)}%',
-                                      style: const TextStyle(
-                                        color: Colors.red,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(
-                              width: 80,
-                              child: Text(
-                                currencyFormat.format(item.product.price),
-                                textAlign: TextAlign.right,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 40,
-                              child: Text(
-                                'x${item.quantity}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 80,
-                              child: Text(
-                                currencyFormat.format(item.total),
-                                textAlign: TextAlign.right,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(color: Colors.brown, thickness: 0.1),
-                      ],
-                    ),
-                  );
-                }),
-                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -3127,19 +2689,10 @@ class _OrderScreenState extends State<OrderScreen> {
                   .map(
                     (cat) => Padding(
                       padding: const EdgeInsets.only(right: 12),
-                      child: ChoiceChip(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isHandheldPos ? 12 : 16,
-                          vertical: isHandheldPos ? 8 : 10,
-                        ),
-                        label: Text(
-                          cat,
-                          style: TextStyle(
-                            fontSize: isHandheldPos ? 13 : 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        selected: _selectedCategory == cat,
+                      child: _CategoryChip(
+                        category: cat,
+                        isHandheldPos: isHandheldPos,
+                        isSelected: _selectedCategory == cat,
                         onSelected: (sel) {
                           if (sel) {
                             _syncState(() {
@@ -3186,69 +2739,12 @@ class _OrderScreenState extends State<OrderScreen> {
                       (item) => item.product.id == product.id,
                     );
 
-                    return Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () => _showDiscountDialog(context, product),
-                        child: Stack(
-                          children: [
-                            Opacity(
-                              opacity: isInCart ? 0.4 : 1.0,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: ProductImage(
-                                      imageUrl: product.imageUrl,
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: EdgeInsets.all(
-                                      isHandheldPos ? 6 : 8,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          product.name,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: isHandheldPos ? 14 : 16,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        SizedBox(height: isHandheldPos ? 2 : 4),
-                                        Text(
-                                          currencyFormat.format(product.price),
-                                          style: TextStyle(
-                                            color: Colors.orange,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: isHandheldPos ? 15 : 18,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (isInCart)
-                              const Center(
-                                child: Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 40,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
+                    return _ProductCard(
+                      product: product,
+                      isInCart: isInCart,
+                      isHandheldPos: isHandheldPos,
+                      currencyFormat: currencyFormat,
+                      onTap: () => _showDiscountDialog(context, product),
                     );
                   },
                 ),
@@ -3270,7 +2766,7 @@ class _OrderScreenState extends State<OrderScreen> {
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, -5),
                     ),
@@ -3562,7 +3058,7 @@ class _OrderScreenState extends State<OrderScreen> {
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -3664,19 +3160,10 @@ class _OrderScreenState extends State<OrderScreen> {
                                 .map(
                                   (cat) => Padding(
                                     padding: const EdgeInsets.only(right: 12),
-                                    child: ChoiceChip(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 12,
-                                      ),
-                                      label: Text(
-                                        cat,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      selected: _selectedCategory == cat,
+                                    child: _CategoryChip(
+                                      category: cat,
+                                      isHandheldPos: false,
+                                      isSelected: _selectedCategory == cat,
                                       onSelected: (sel) {
                                         if (sel) {
                                           _syncState(() {
@@ -3738,88 +3225,14 @@ class _OrderScreenState extends State<OrderScreen> {
                                               item.product.id == product.id,
                                         );
 
-                                        return Card(
-                                          clipBehavior: Clip.antiAlias,
-                                          child: InkWell(
-                                            onTap: () => _showDiscountDialog(
-                                              context,
-                                              product,
-                                            ),
-                                            child: Stack(
-                                              children: [
-                                                Opacity(
-                                                  opacity: isInCart ? 0.4 : 1.0,
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Expanded(
-                                                        child: ProductImage(
-                                                          imageUrl:
-                                                              product.imageUrl,
-                                                          fit: BoxFit.cover,
-                                                          width:
-                                                              double.infinity,
-                                                        ),
-                                                      ),
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets.all(
-                                                              8,
-                                                            ),
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            Text(
-                                                              product.name,
-                                                              style: const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                fontSize: 16,
-                                                              ),
-                                                              maxLines: 2,
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis,
-                                                            ),
-                                                            const SizedBox(
-                                                              height: 4,
-                                                            ),
-                                                            Text(
-                                                              currencyFormat
-                                                                  .format(
-                                                                    product
-                                                                        .price,
-                                                                  ),
-                                                              style: const TextStyle(
-                                                                color: Colors
-                                                                    .orange,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                fontSize: 18,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                if (isInCart)
-                                                  const Center(
-                                                    child: Icon(
-                                                      Icons.check_circle,
-                                                      color: Colors.green,
-                                                      size: 48,
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
+                                        return _ProductCard(
+                                          product: product,
+                                          isInCart: isInCart,
+                                          isHandheldPos: false,
+                                          currencyFormat: currencyFormat,
+                                          onTap: () => _showDiscountDialog(
+                                            context,
+                                            product,
                                           ),
                                         );
                                       },
@@ -3993,458 +3406,85 @@ class _OrderScreenState extends State<OrderScreen> {
                   separatorBuilder: (_, _) => const Divider(),
                   itemBuilder: (ctx, index) {
                     final item = _cart[index];
-                    return InkWell(
+                    return _CartItemTile(
+                      item: item,
+                      index: index,
+                      isHandheldPos: isHandheldPos,
+                      panelPadding: panelPadding,
+                      currencyFormat: currencyFormat,
                       onTap: () => _showEditCartDialog(ctx, index),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: panelPadding,
-                          vertical: isHandheldPos ? 6 : 8,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: ProductImage(
-                                    imageUrl: item.product.imageUrl,
-                                    width: isHandheldPos ? 38 : 45,
-                                    height: isHandheldPos ? 38 : 45,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                SizedBox(width: isHandheldPos ? 8 : 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.product.name,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: isHandheldPos ? 14 : 16,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      if (item.note.isNotEmpty)
-                                        Text(
-                                          'Ghi chú: ${item.note}',
-                                          style: const TextStyle(
-                                            fontStyle: FontStyle.italic,
-                                            color: Colors.blueGrey,
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  constraints: const BoxConstraints(),
-                                  padding: const EdgeInsets.all(4),
-                                  icon: const Icon(
-                                    Icons.delete_sweep_outlined,
-                                    color: Colors.red,
-                                    size: 20,
-                                  ),
-                                  onPressed: () {
-                                    _syncState(() => _cart.removeAt(index));
-                                  },
-                                  tooltip: 'Xóa món này',
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${currencyFormat.format(item.product.price)} x ${item.quantity}',
-                                        style: TextStyle(
-                                          fontSize: isHandheldPos ? 12 : 14,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      if (item.discountPercent > 0)
-                                        Text(
-                                          'Giảm: ${item.discountPercent.toStringAsFixed(0)}%',
-                                          style: const TextStyle(
-                                            color: Colors.red,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      icon: const Icon(
-                                        Icons.remove_circle_outline,
-                                        color: Colors.red,
-                                        size: 26,
-                                      ),
-                                      onPressed: () =>
-                                          _updateQuantity(index, -1),
-                                    ),
-                                    SizedBox(width: isHandheldPos ? 2 : 4),
-                                    _CartItemQuantityInput(
-                                      key: ValueKey(
-                                        'cart_qty_${item.product.id}_${item.discountPercent}_${item.note}',
-                                      ),
-                                      quantity: item.quantity,
-                                      onChanged: (val) {
-                                        _syncState(() {
-                                          item.quantity = val;
-                                        });
-                                      },
-                                      onRemove: () {
-                                        _syncState(() => _cart.removeAt(index));
-                                      },
-                                    ),
-                                    SizedBox(width: isHandheldPos ? 2 : 4),
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      icon: const Icon(
-                                        Icons.add_circle_outline,
-                                        color: Colors.green,
-                                        size: 26,
-                                      ),
-                                      onPressed: () =>
-                                          _updateQuantity(index, 1),
-                                    ),
-                                    SizedBox(width: isHandheldPos ? 4 : 8),
-                                    ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxWidth: isHandheldPos ? 82 : 120,
-                                      ),
-                                      child: Text(
-                                        currencyFormat.format(item.total),
-                                        textAlign: TextAlign.right,
-                                        style: TextStyle(
-                                          color: Colors.orange,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: isHandheldPos ? 14 : 18,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                      onDelete: () => _syncState(() => _cart.removeAt(index)),
+                      onUpdateQuantity: (delta) => _updateQuantity(index, delta),
+                      onQuantityChanged: (val) =>
+                          _syncState(() => item.quantity = val),
+                      onRemove: () => _syncState(() => _cart.removeAt(index)),
                     );
                   },
                 ),
         ),
         const Divider(),
-        Padding(
-          padding: EdgeInsets.all(isHandheldPos ? 10 : 16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Tạm tính:',
-                    style: TextStyle(
-                        fontSize: isHandheldPos ? 14 : 16,
-                        fontWeight: FontWeight.w500),
-                  ),
-                  Text(
-                    currencyFormat.format(_subtotal),
-                    style: TextStyle(
-                      fontSize: isHandheldPos ? 14 : 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: isHandheldPos ? 4 : 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'VAT (%):',
-                    style: TextStyle(
-                        fontSize: isHandheldPos ? 14 : 16,
-                        fontWeight: FontWeight.w500),
-                  ),
-                  isAdmin
-                      ? _VATInput(
-                          vatPercent: _vatPercent,
-                          onChanged: (val) =>
-                              _syncState(() => _vatPercent = val),
-                        )
-                      : Text(
-                          '${_vatPercent.toStringAsFixed(0)}%',
-                          style: TextStyle(
-                            fontSize: isHandheldPos ? 14 : 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    currencyFormat.format(_vatAmount),
-                    style: TextStyle(
-                      fontSize: isHandheldPos ? 12 : 14,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'TỔNG CỘNG:',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isHandheldPos ? 14 : 16),
-                  ),
-                  Text(
-                    currencyFormat.format(_total),
-                    style: TextStyle(
-                      fontSize: isHandheldPos ? 18 : 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: isHandheldPos ? 8 : 16),
-              if (isUser) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _cart.isEmpty
-                        ? null
-                        : () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Xác nhận đặt món'),
-                                content: const Text(
-                                  'Gửi đơn hàng này cho Cashier?',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Hủy'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        _finishStaffOrder(context, 'Đặt món'),
-                                    child: const Text('XÁC NHẬN'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    label: const Text(
-                      'GỬI ĐƠN',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      padding: EdgeInsets.symmetric(
-                          vertical: isHandheldPos ? 10 : 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-              ] else if (!canCheckout) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _cart.isEmpty
-                        ? null
-                        : () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Xác nhận đặt món'),
-                                content: const Text(
-                                  'Gửi đơn hàng này cho Cashier?',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Hủy'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        _finishStaffOrder(context, 'Đặt món'),
-                                    child: const Text('XÁC NHẬN'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                    icon: const Icon(
-                      Icons.restaurant_menu,
-                      color: Colors.white,
-                    ),
-                    label: const Text(
-                      'ĐẶT MÓN',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      padding: EdgeInsets.symmetric(
-                          vertical: isHandheldPos ? 10 : 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-              ] else ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _cart.isEmpty ? null : _clearCart,
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        label: const Text(
-                          'XÓA ĐƠN HÀNG',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          padding: EdgeInsets.symmetric(
-                              vertical: isHandheldPos ? 10 : 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _cart.isEmpty ? null : _confirmOrder,
-                        icon: const Icon(
-                          Icons.receipt_outlined,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        label: const Text(
-                          'TẠM TÍNH',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orangeAccent,
-                          padding: EdgeInsets.symmetric(
-                              vertical: isHandheldPos ? 10 : 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _cart.isEmpty
-                        ? null
-                        : () {
-                            final orderToPayment = SavedOrder(
-                              id:
-                                  _currentPendingOrder?.id ??
-                                  DateTime.now().millisecondsSinceEpoch
-                                      .toString(),
-                              shiftId: _currentPendingOrder?.shiftId,
-                              tableOrCustomer: _selectedOrderType,
-                              items: List<CartItem>.from(_cart),
-                              dateTime: DateTime.now(),
-                              subtotal: _subtotal,
-                              discountAmount: 0,
-                              vatRate: _vatPercent,
-                              vatAmount: _vatAmount,
-                              totalAmount: _total,
-                              paymentMethod:
-                                  _currentPendingOrder?.paymentMethod ?? 'cash',
-                              source:
-                                  _currentPendingOrder?.source ??
-                                  OrderSource.posStaff,
-                              status: OrderStatus.pending,
-                            );
-                            _completeOrder(orderToPayment);
-                          },
-                    icon: const Icon(Icons.payment, color: Colors.white),
-                    label: const Text(
-                      'THANH TOÁN',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      padding: EdgeInsets.symmetric(
-                          vertical: isHandheldPos ? 12 : 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 2,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+        _CartSummary(
+          subtotal: _subtotal,
+          vatPercent: _vatPercent,
+          vatAmount: _vatAmount,
+          total: _total,
+          isAdmin: isAdmin,
+          isUser: isUser,
+          canCheckout: canCheckout,
+          isHandheldPos: isHandheldPos,
+          currencyFormat: currencyFormat,
+          vatInput: _VATInput(
+            vatPercent: _vatPercent,
+            onChanged: (val) => _syncState(() => _vatPercent = val),
           ),
+          onClearCart: _cart.isEmpty ? null : _clearCart,
+          onConfirmOrder: _cart.isEmpty ? null : _confirmOrder,
+          onCheckout: _cart.isEmpty
+              ? null
+              : () {
+                  final orderToPayment = SavedOrder(
+                    id: _currentPendingOrder?.id ??
+                        DateTime.now().millisecondsSinceEpoch.toString(),
+                    shiftId: _currentPendingOrder?.shiftId,
+                    tableOrCustomer: _selectedOrderType,
+                    items: List<CartItem>.from(_cart),
+                    dateTime: DateTime.now(),
+                    subtotal: _subtotal,
+                    discountAmount: 0,
+                    vatRate: _vatPercent,
+                    vatAmount: _vatAmount,
+                    totalAmount: _total,
+                    paymentMethod:
+                        _currentPendingOrder?.paymentMethod ?? 'cash',
+                    source: _currentPendingOrder?.source ?? OrderSource.posStaff,
+                    status: OrderStatus.pending,
+                  );
+                  _completeOrder(orderToPayment);
+                },
+          onSendOrder: _cart.isEmpty
+              ? null
+              : () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Xác nhận đặt món'),
+                      content: const Text(
+                        'Gửi đơn hàng này cho Cashier?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Hủy'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () =>
+                              _finishStaffOrder(context, 'Đặt món'),
+                          child: const Text('XÁC NHẬN'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
         ),
       ],
     );
@@ -4630,6 +3670,855 @@ class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
             }
           },
         ),
+    );
+  }
+}
+
+// ─── Refactored Widgets ───
+
+class _PaymentMethodTab extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _PaymentMethodTab({
+    required this.title,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.green.shade50 : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? Colors.green.shade400 : Colors.grey.shade300,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.green.shade700 : Colors.grey.shade600,
+                size: isMobile ? 24 : 28,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color:
+                      isSelected ? Colors.green.shade700 : Colors.grey.shade600,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: isMobile ? 12 : 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isGrey;
+  final String? subtitle;
+
+  const _PaymentInfoRow({
+    required this.label,
+    required this.value,
+    this.isGrey = false,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: isMobile ? 14 : 15,
+                    color: isGrey ? Colors.grey.shade600 : Colors.black87,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: TextStyle(
+                      fontSize: isMobile ? 10 : 11,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: isMobile ? 14 : 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CartItemTile extends StatelessWidget {
+  final CartItem item;
+  final int index;
+  final bool isHandheldPos;
+  final double panelPadding;
+  final NumberFormat currencyFormat;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+  final Function(int) onUpdateQuantity;
+  final Function(int) onQuantityChanged;
+  final VoidCallback onRemove;
+
+  const _CartItemTile({
+    required this.item,
+    required this.index,
+    required this.isHandheldPos,
+    required this.panelPadding,
+    required this.currencyFormat,
+    required this.onTap,
+    required this.onDelete,
+    required this.onUpdateQuantity,
+    required this.onQuantityChanged,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: panelPadding,
+          vertical: isHandheldPos ? 6 : 8,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: ProductImage(
+                    imageUrl: item.product.imageUrl,
+                    width: isHandheldPos ? 38 : 45,
+                    height: isHandheldPos ? 38 : 45,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                SizedBox(width: isHandheldPos ? 8 : 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.product.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isHandheldPos ? 14 : 16,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (item.note.isNotEmpty)
+                        Text(
+                          'Ghi chú: ${item.note}',
+                          style: const TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: Colors.blueGrey,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                  icon: const Icon(
+                    Icons.delete_sweep_outlined,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                  onPressed: onDelete,
+                  tooltip: 'Xóa món này',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${currencyFormat.format(item.product.price)} x ${item.quantity}',
+                        style: TextStyle(
+                          fontSize: isHandheldPos ? 12 : 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (item.discountPercent > 0)
+                        Text(
+                          'Giảm: ${item.discountPercent.toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(
+                        Icons.remove_circle_outline,
+                        color: Colors.red,
+                        size: 26,
+                      ),
+                      onPressed: () => onUpdateQuantity(-1),
+                    ),
+                    SizedBox(width: isHandheldPos ? 2 : 4),
+                    _CartItemQuantityInput(
+                      key: ValueKey(
+                        'cart_qty_${item.product.id}_${item.discountPercent}_${item.note}',
+                      ),
+                      quantity: item.quantity,
+                      onChanged: onQuantityChanged,
+                      onRemove: onRemove,
+                    ),
+                    SizedBox(width: isHandheldPos ? 2 : 4),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(
+                        Icons.add_circle_outline,
+                        color: Colors.green,
+                        size: 26,
+                      ),
+                      onPressed: () => onUpdateQuantity(1),
+                    ),
+                    SizedBox(width: isHandheldPos ? 4 : 8),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isHandheldPos ? 82 : 120,
+                      ),
+                      child: Text(
+                        currencyFormat.format(item.total),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                          fontSize: isHandheldPos ? 14 : 18,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CartSummary extends StatelessWidget {
+  final double subtotal;
+  final double vatPercent;
+  final double vatAmount;
+  final double total;
+  final bool isAdmin;
+  final bool isUser;
+  final bool canCheckout;
+  final bool isHandheldPos;
+  final NumberFormat currencyFormat;
+  final Widget vatInput;
+  final VoidCallback? onClearCart;
+  final VoidCallback? onConfirmOrder;
+  final VoidCallback? onCheckout;
+  final VoidCallback? onSendOrder;
+
+  const _CartSummary({
+    required this.subtotal,
+    required this.vatPercent,
+    required this.vatAmount,
+    required this.total,
+    required this.isAdmin,
+    required this.isUser,
+    required this.canCheckout,
+    required this.isHandheldPos,
+    required this.currencyFormat,
+    required this.vatInput,
+    required this.onClearCart,
+    required this.onConfirmOrder,
+    required this.onCheckout,
+    required this.onSendOrder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.all(isHandheldPos ? 10 : 16),
+      child: Column(
+        children: [
+          _summaryRow('Tạm tính:', currencyFormat.format(subtotal)),
+          SizedBox(height: isHandheldPos ? 4 : 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'VAT (%):',
+                style: TextStyle(
+                    fontSize: isHandheldPos ? 14 : 16,
+                    fontWeight: FontWeight.w500),
+              ),
+              isAdmin
+                  ? vatInput
+                  : Text(
+                      '${vatPercent.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: isHandheldPos ? 14 : 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                currencyFormat.format(vatAmount),
+                style: TextStyle(
+                  fontSize: isHandheldPos ? 12 : 14,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const Divider(),
+          _summaryRow('TỔNG CỘNG:', currencyFormat.format(total), isTotal: true),
+          SizedBox(height: isHandheldPos ? 8 : 16),
+          _buildActions(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(String label, String value, {bool isTotal = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isHandheldPos ? 14 : 16,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isHandheldPos ? (isTotal ? 18 : 14) : (isTotal ? 20 : 16),
+            fontWeight: FontWeight.bold,
+            color: isTotal ? Colors.red : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActions(BuildContext context) {
+    if (isUser) {
+      return _actionButton(
+        onPressed: onSendOrder,
+        icon: Icons.send,
+        label: 'GỬI ĐƠN',
+        color: Colors.green,
+      );
+    } else if (!canCheckout) {
+      return _actionButton(
+        onPressed: onSendOrder,
+        icon: Icons.restaurant_menu,
+        label: 'ĐẶT MÓN',
+        color: Colors.blue,
+      );
+    } else {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _actionButton(
+                  onPressed: onClearCart,
+                  icon: Icons.delete_outline,
+                  label: 'XÓA ĐƠN HÀNG',
+                  color: Colors.red,
+                  compact: true,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _actionButton(
+                  onPressed: onConfirmOrder,
+                  icon: Icons.receipt_outlined,
+                  label: 'TẠM TÍNH',
+                  color: Colors.orangeAccent,
+                  compact: true,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _actionButton(
+            onPressed: onCheckout,
+            icon: Icons.payment,
+            label: 'THANH TOÁN',
+            color: Colors.green,
+            large: true,
+          ),
+        ],
+      );
+    }
+  }
+
+  Widget _actionButton({
+    required VoidCallback? onPressed,
+    required IconData icon,
+    required String label,
+    required Color color,
+    bool compact = false,
+    bool large = false,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, color: Colors.white, size: compact ? 18 : 24),
+        label: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: compact ? 13 : (large ? 16 : 14),
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          padding: EdgeInsets.symmetric(
+            vertical: isHandheldPos ? (compact ? 10 : 12) : (large ? 16 : 14),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: large ? 2 : 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRowDetail extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _InfoRowDetail({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              color: Color(0xFF2E1C16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptItemsTable extends StatelessWidget {
+  final List<CartItem> items;
+  final bool isCompact;
+  final NumberFormat currencyFormat;
+
+  const _ReceiptItemsTable({
+    required this.items,
+    required this.isCompact,
+    required this.currencyFormat,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isCompact) {
+      return Column(
+        children: [
+          const Divider(color: Colors.brown, thickness: 0.2),
+          ...items.asMap().entries.map((entry) {
+            final index = entry.key + 1;
+            final item = entry.value;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        child: Text(
+                          '$index.',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          item.product.name,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 82),
+                        child: Text(
+                          currencyFormat.format(item.total),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 24, top: 2),
+                    child: Text(
+                      '${currencyFormat.format(item.product.price)} x ${item.quantity}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                  if (item.discountPercent > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24, top: 2),
+                      child: Text(
+                        '-${item.discountPercent.toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  const Divider(color: Colors.brown, thickness: 0.1),
+                ],
+              ),
+            );
+          }),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        const Divider(color: Colors.brown, thickness: 0.2),
+        Row(
+          children: const [
+            SizedBox(
+              width: 30,
+              child: Text(
+                'STT',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                'Tên món',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              width: 80,
+              child: Text(
+                'Đơn giá',
+                textAlign: TextAlign.right,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              width: 40,
+              child: Text(
+                'SL',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              width: 80,
+              child: Text(
+                'T.Tiền',
+                textAlign: TextAlign.right,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        const Divider(color: Colors.brown, thickness: 0.2),
+        ...items.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final item = entry.value;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 30,
+                      child: Text(
+                        '${idx + 1}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.product.name,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          if (item.discountPercent > 0)
+                            Text(
+                              '-${item.discountPercent.toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 11,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        currencyFormat.format(item.product.price),
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 40,
+                      child: Text(
+                        'x${item.quantity}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        currencyFormat.format(item.total),
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(color: Colors.brown, thickness: 0.1),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  final Product product;
+  final bool isInCart;
+  final bool isHandheldPos;
+  final NumberFormat currencyFormat;
+  final VoidCallback onTap;
+
+  const _ProductCard({
+    required this.product,
+    required this.isInCart,
+    required this.isHandheldPos,
+    required this.currencyFormat,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Stack(
+          children: [
+            Opacity(
+              opacity: isInCart ? 0.4 : 1.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: ProductImage(
+                      imageUrl: product.imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(isHandheldPos ? 6 : 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: isHandheldPos ? 14 : 16,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: isHandheldPos ? 2 : 4),
+                        Text(
+                          currencyFormat.format(product.price),
+                          style: TextStyle(
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                            fontSize: isHandheldPos ? 15 : 18,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isInCart)
+              Center(
+                child: Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: isHandheldPos ? 40 : 48,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  final String category;
+  final bool isSelected;
+  final bool isHandheldPos;
+  final Function(bool) onSelected;
+
+  const _CategoryChip({
+    required this.category,
+    required this.isSelected,
+    required this.isHandheldPos,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      padding: EdgeInsets.symmetric(
+        horizontal: isHandheldPos ? 12 : 20,
+        vertical: isHandheldPos ? 8 : 12,
+      ),
+      label: Text(
+        category,
+        style: TextStyle(
+          fontSize: isHandheldPos ? 13 : 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      selected: isSelected,
+      onSelected: onSelected,
     );
   }
 }
