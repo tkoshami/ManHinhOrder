@@ -79,6 +79,11 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
 
   double get _subtotal => _cart.fold(0.0, (sum, item) => sum + item.total);
 
+  double _responsiveDialogWidth(BuildContext context, double desiredWidth) {
+    final availableWidth = MediaQuery.sizeOf(context).width - 32;
+    return desiredWidth.clamp(0, availableWidth).toDouble();
+  }
+
   void _filterProducts(String query) {
     setState(() {
       _filteredProducts = _allProducts.where((p) {
@@ -122,7 +127,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           content: SizedBox(
-            width: 400,
+            width: _responsiveDialogWidth(context, 400),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -250,7 +255,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text('Chỉnh sửa: ${item.product.name}'),
           content: SizedBox(
-            width: 400,
+            width: _responsiveDialogWidth(context, 400),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -513,6 +518,8 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isCompact = MediaQuery.sizeOf(context).width < 700;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -549,20 +556,36 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
           ),
         ],
       ),
-      body: Row(
-        children: [
-          Expanded(flex: 3, child: _buildProductPanel()),
-          Container(width: 350, color: Colors.white, child: _buildCartPanel()),
-        ],
-      ),
+      body: isCompact
+          ? Column(
+              children: [
+                Expanded(child: _buildProductPanel()),
+                Container(
+                  height: MediaQuery.sizeOf(context).height * 0.42,
+                  color: Colors.white,
+                  child: _buildCartPanel(),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(flex: 3, child: _buildProductPanel()),
+                Container(
+                  width: 350,
+                  color: Colors.white,
+                  child: _buildCartPanel(),
+                ),
+              ],
+            ),
     );
   }
 
   Widget _buildProductPanel() {
+    final bool isCompact = MediaQuery.sizeOf(context).width < 700;
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(isCompact ? 8 : 12),
           child: TextField(
             controller: _searchController,
             onChanged: _filterProducts,
@@ -610,13 +633,14 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   }
 
   Widget _buildProductGrid() {
+    final bool isCompact = MediaQuery.sizeOf(context).width < 700;
     return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+      padding: EdgeInsets.all(isCompact ? 8 : 12),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: isCompact ? 170 : 200,
+        childAspectRatio: isCompact ? 0.86 : 0.8,
+        crossAxisSpacing: isCompact ? 8 : 12,
+        mainAxisSpacing: isCompact ? 8 : 12,
       ),
       itemCount: _filteredProducts.length,
       itemBuilder: (context, index) => ProductCard(

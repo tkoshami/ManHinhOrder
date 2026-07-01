@@ -53,6 +53,30 @@ class _OrderScreenState extends State<OrderScreen> {
   bool _hasSyncedInitialOrderStream = false;
   final Set<String> _notifiedQrOrderIds = <String>{};
 
+  bool _isHandheldPos(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final shortestSide = size.shortestSide;
+    return shortestSide <= 380;
+  }
+
+  int _mobileProductColumns(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 360) return 1;
+    return 2;
+  }
+
+  double _mobileProductAspectRatio(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 360) return 1.05;
+    if (_isHandheldPos(context)) return 0.82;
+    return 0.9;
+  }
+
+  double _responsiveDialogWidth(BuildContext context, double desiredWidth) {
+    final availableWidth = MediaQuery.sizeOf(context).width - 32;
+    return desiredWidth.clamp(0, availableWidth).toDouble();
+  }
+
   void _syncState(VoidCallback fn) {
     setState(fn);
     _sheetState?.call(() {});
@@ -1193,7 +1217,7 @@ class _OrderScreenState extends State<OrderScreen> {
         ),
         contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
         content: SizedBox(
-          width: 450,
+          width: _responsiveDialogWidth(context, 450),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1348,7 +1372,7 @@ class _OrderScreenState extends State<OrderScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         backgroundColor: const Color(0xFFF5EFEB),
         child: Container(
-          width: 500,
+          width: _responsiveDialogWidth(context, 500),
           padding: const EdgeInsets.all(24),
           child: SingleChildScrollView(
             child: Column(
@@ -1707,7 +1731,7 @@ class _OrderScreenState extends State<OrderScreen> {
               ],
             ),
             content: SizedBox(
-              width: 450,
+              width: _responsiveDialogWidth(context, 450),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1959,7 +1983,7 @@ class _OrderScreenState extends State<OrderScreen> {
               ],
             ),
             content: SizedBox(
-              width: 400,
+              width: _responsiveDialogWidth(context, 400),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -2251,7 +2275,7 @@ class _OrderScreenState extends State<OrderScreen> {
             ),
           ),
           content: SizedBox(
-            width: 450,
+            width: _responsiveDialogWidth(context, 450),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2718,10 +2742,19 @@ class _OrderScreenState extends State<OrderScreen> {
 
   Widget _buildMobileLayout() {
     final bool isAdmin = widget.user.role == UserRole.admin;
+    final bool isHandheldPos = _isHandheldPos(context);
+    final int productColumns = _mobileProductColumns(context);
+    final double productAspectRatio = _mobileProductAspectRatio(context);
+    final double horizontalPadding = isHandheldPos ? 6 : 8;
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            8,
+            horizontalPadding,
+            isHandheldPos ? 8 : 12,
+          ),
           child: Row(
             children: [
               Expanded(
@@ -2753,7 +2786,7 @@ class _OrderScreenState extends State<OrderScreen> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -2762,14 +2795,14 @@ class _OrderScreenState extends State<OrderScreen> {
                     (cat) => Padding(
                       padding: const EdgeInsets.only(right: 12),
                       child: ChoiceChip(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isHandheldPos ? 12 : 16,
+                          vertical: isHandheldPos ? 8 : 10,
                         ),
                         label: Text(
                           cat,
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: TextStyle(
+                            fontSize: isHandheldPos ? 13 : 14,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -2806,12 +2839,12 @@ class _OrderScreenState extends State<OrderScreen> {
                   ),
                 )
               : GridView.builder(
-                  padding: const EdgeInsets.all(8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.9,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
+                  padding: EdgeInsets.all(isHandheldPos ? 6 : 8),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: productColumns,
+                    childAspectRatio: productAspectRatio,
+                    crossAxisSpacing: isHandheldPos ? 6 : 8,
+                    mainAxisSpacing: isHandheldPos ? 6 : 8,
                   ),
                   itemCount: _filteredProducts.length,
                   itemBuilder: (context, index) {
@@ -2839,28 +2872,32 @@ class _OrderScreenState extends State<OrderScreen> {
                                     ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.all(8.0),
+                                    padding: EdgeInsets.all(
+                                      isHandheldPos ? 6 : 8,
+                                    ),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           product.name,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                            fontSize: isHandheldPos ? 14 : 16,
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(height: 4),
+                                        SizedBox(height: isHandheldPos ? 2 : 4),
                                         Text(
                                           currencyFormat.format(product.price),
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             color: Colors.orange,
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 18,
+                                            fontSize: isHandheldPos ? 15 : 18,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ],
                                     ),
@@ -2890,7 +2927,12 @@ class _OrderScreenState extends State<OrderScreen> {
             child: InkWell(
               onTap: _showCartBottomSheet,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                padding: EdgeInsets.fromLTRB(
+                  isHandheldPos ? 10 : 16,
+                  isHandheldPos ? 8 : 12,
+                  isHandheldPos ? 10 : 16,
+                  isHandheldPos ? 12 : 24,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
@@ -2913,10 +2955,10 @@ class _OrderScreenState extends State<OrderScreen> {
                               color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.shopping_basket_outlined,
                               color: Colors.orange,
-                              size: 28,
+                              size: isHandheldPos ? 24 : 28,
                             ),
                           ),
                           Positioned(
@@ -2945,7 +2987,7 @@ class _OrderScreenState extends State<OrderScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: isHandheldPos ? 10 : 16),
                       Expanded(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -3460,6 +3502,8 @@ class _OrderScreenState extends State<OrderScreen> {
     final bool canCheckout = isAdmin || isCashier;
     final bool isMobile =
         _sheetState != null || MediaQuery.of(context).size.width < 600;
+    final bool isHandheldPos = _isHandheldPos(context);
+    final double panelPadding = isHandheldPos ? 8 : 12;
 
     return Column(
       children: [
@@ -3472,7 +3516,10 @@ class _OrderScreenState extends State<OrderScreen> {
             ),
           ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: panelPadding,
+            vertical: isHandheldPos ? 6 : 8,
+          ),
           child: Row(
             children: _orderTypes.map((type) {
               IconData icon;
@@ -3492,27 +3539,35 @@ class _OrderScreenState extends State<OrderScreen> {
               final isSelected = _selectedOrderType == type;
               return Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isHandheldPos ? 2 : 4,
+                  ),
                   child: ChoiceChip(
                     showCheckmark: false,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: EdgeInsets.symmetric(
+                      vertical: isHandheldPos ? 8 : 10,
+                    ),
                     label: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           icon,
-                          size: 20,
+                          size: isHandheldPos ? 18 : 20,
                           color: isSelected ? Colors.white : Colors.grey,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          type,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isSelected ? Colors.white : Colors.black87,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                        SizedBox(width: isHandheldPos ? 3 : 6),
+                        Flexible(
+                          child: Text(
+                            type,
+                            style: TextStyle(
+                              fontSize: isHandheldPos ? 11 : 14,
+                              color: isSelected ? Colors.white : Colors.black87,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -3554,12 +3609,12 @@ class _OrderScreenState extends State<OrderScreen> {
                                   borderRadius: BorderRadius.circular(4),
                                   child: ProductImage(
                                     imageUrl: item.product.imageUrl,
-                                    width: 45,
-                                    height: 45,
+                                    width: isHandheldPos ? 38 : 45,
+                                    height: isHandheldPos ? 38 : 45,
                                     fit: BoxFit.cover,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: isHandheldPos ? 8 : 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -3567,9 +3622,9 @@ class _OrderScreenState extends State<OrderScreen> {
                                     children: [
                                       Text(
                                         item.product.name,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                          fontSize: isHandheldPos ? 14 : 16,
                                         ),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
@@ -3613,7 +3668,9 @@ class _OrderScreenState extends State<OrderScreen> {
                                     children: [
                                       Text(
                                         '${currencyFormat.format(item.product.price)} x ${item.quantity}',
-                                        style: const TextStyle(fontSize: 14),
+                                        style: TextStyle(
+                                          fontSize: isHandheldPos ? 12 : 14,
+                                        ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       if (item.discountPercent > 0)
@@ -3642,7 +3699,7 @@ class _OrderScreenState extends State<OrderScreen> {
                                       onPressed: () =>
                                           _updateQuantity(index, -1),
                                     ),
-                                    const SizedBox(width: 4),
+                                    SizedBox(width: isHandheldPos ? 2 : 4),
                                     _CartItemQuantityInput(
                                       key: ValueKey(
                                         'cart_qty_${item.product.id}_${item.discountPercent}_${item.note}',
@@ -3657,7 +3714,7 @@ class _OrderScreenState extends State<OrderScreen> {
                                         _syncState(() => _cart.removeAt(index));
                                       },
                                     ),
-                                    const SizedBox(width: 4),
+                                    SizedBox(width: isHandheldPos ? 2 : 4),
                                     IconButton(
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
@@ -3669,14 +3726,21 @@ class _OrderScreenState extends State<OrderScreen> {
                                       onPressed: () =>
                                           _updateQuantity(index, 1),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      currencyFormat.format(item.total),
-                                      textAlign: TextAlign.right,
-                                      style: const TextStyle(
-                                        color: Colors.orange,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
+                                    SizedBox(width: isHandheldPos ? 4 : 8),
+                                    ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: isHandheldPos ? 82 : 120,
+                                      ),
+                                      child: Text(
+                                        currencyFormat.format(item.total),
+                                        textAlign: TextAlign.right,
+                                        style: TextStyle(
+                                          color: Colors.orange,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: isHandheldPos ? 14 : 18,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
@@ -4100,8 +4164,9 @@ class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isHandheldPos = MediaQuery.sizeOf(context).shortestSide <= 380;
     return SizedBox(
-      width: 50,
+      width: isHandheldPos ? 38 : 50,
       child: TextField(
         textAlign: TextAlign.center,
         keyboardType: const TextInputType.numberWithOptions(
@@ -4109,9 +4174,9 @@ class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
           decimal: false,
         ),
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           isDense: true,
-          contentPadding: EdgeInsets.symmetric(vertical: 4),
+          contentPadding: EdgeInsets.symmetric(vertical: isHandheldPos ? 2 : 4),
           border: InputBorder.none,
         ),
         controller: _controller,
