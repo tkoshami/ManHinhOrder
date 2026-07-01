@@ -165,15 +165,21 @@ class _OrderScreenState extends State<OrderScreen> {
     }
   }
 
-  void _printBill(SavedOrder order, {double? receivedAmount}) {
+  void _printBill(
+    SavedOrder order, {
+    double? receivedAmount,
+    String? snackMessage,
+  }) {
     PrintService.printBill(order, receivedAmount: receivedAmount);
 
     // Xóa ngay lập tức các snackbar cũ để không bị dồn hàng chờ
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    final snackController = ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Đơn mới từ khách: ${order.id}. Đang in bill...'),
+        content: Text(
+          snackMessage ?? 'Đơn mới từ khách: ${order.id}. Đang in bill...',
+        ),
         backgroundColor: Colors.blue,
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior
@@ -189,6 +195,16 @@ class _OrderScreenState extends State<OrderScreen> {
         ),
       ),
     );
+
+    var snackClosed = false;
+    snackController.closed.then((_) {
+      snackClosed = true;
+    });
+    Future.delayed(const Duration(seconds: 4), () {
+      if (!snackClosed) {
+        snackController.close();
+      }
+    });
   }
 
   Future<void> _loadProducts() async {
@@ -851,6 +867,8 @@ class _OrderScreenState extends State<OrderScreen> {
                                             receivedAmount >= order.totalAmount
                                         ? receivedAmount
                                         : null,
+                                    snackMessage:
+                                        'Đang in bill đơn ${order.id ?? ''}...',
                                   );
                                 },
                                 icon: const Icon(Icons.print),
@@ -1112,7 +1130,11 @@ class _OrderScreenState extends State<OrderScreen> {
     });
 
     // In hóa đơn tự động khi hoàn tất thanh toán
-    _printBill(completedOrder, receivedAmount: receivedAmount);
+    _printBill(
+      completedOrder,
+      receivedAmount: receivedAmount,
+      snackMessage: 'Đang in bill đơn ${completedOrder.id ?? ''}...',
+    );
 
     _showReceiptDialogForOrder(
       completedOrder,
