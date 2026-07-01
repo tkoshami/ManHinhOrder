@@ -123,11 +123,23 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              title: Text(
-                existingItem == null
-                    ? product.name
-                    : 'Chỉnh sửa: ${product.name}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              titlePadding: const EdgeInsets.fromLTRB(24, 8, 8, 0),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      existingItem == null
+                          ? product.name
+                          : 'Chỉnh sửa: ${product.name}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
               ),
               content: SizedBox(
                 width: 450,
@@ -203,10 +215,22 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                         controller: noteController,
                         maxLines: 2,
                         maxLength: 100,
+                        style: const TextStyle(color: Colors.black),
                         decoration: InputDecoration(
-                          hintText: 'VD: ít đường, không đá...',
+                          hintText: 'VD: không rau, thêm chả...',
+                          filled: true,
+                          fillColor: Colors.white,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Colors.green, width: 2.2),
                           ),
                           counterText: '${noteController.text.length}/100',
                         ),
@@ -216,35 +240,37 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                   ),
                 ),
               ),
+              actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Hủy',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (existingItem != null) {
-                      setState(() {
-                        existingItem.quantity = quantity;
-                        existingItem.note = noteController.text;
-                      });
-                    } else {
-                      _addToCart(product, quantity, noteController.text);
-                    }
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (existingItem != null) {
+                        setState(() {
+                          existingItem.quantity = quantity;
+                          existingItem.note = noteController.text;
+                        });
+                      } else {
+                        _addToCart(product, quantity, noteController.text);
+                      }
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    existingItem == null ? 'Thêm vào giỏ' : 'Cập nhật',
+                    child: Text(
+                      existingItem == null ? 'THÊM VÀO ĐƠN' : 'CẬP NHẬT',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -340,17 +366,25 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                     controller: _searchController,
                     onChanged: (value) =>
                         _filterProducts(_selectedCategory, value),
+                    style: const TextStyle(color: Colors.black),
                     decoration: InputDecoration(
                       hintText: 'Tìm kiếm món ăn...',
                       prefixIcon: const Icon(Icons.search, color: Colors.green),
+                      filled: true,
+                      fillColor: Colors.white,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(
                           color: Colors.green,
-                          width: 2,
+                          width: 2.2,
                         ),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
@@ -416,77 +450,65 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Opacity(
-                opacity: isInCart ? 0.4 : 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: ProductImage(
-                        imageUrl: product.imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
+          child: InkWell(
+            onTap: () => _showProductDetailDialog(product),
+            child: Stack(
+              children: [
+                Opacity(
+                  opacity: isInCart ? 0.4 : 1.0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ProductImage(
+                          imageUrl: product.imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            product.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            currencyFormat.format(product.price),
-                            style: const TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () =>
-                                  _showProductDetailDialog(product),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(0, 32),
+                            Text(
+                              currencyFormat.format(product.price),
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
                               ),
-                              child: const Text('THÊM'),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              if (isInCart)
-                IgnorePointer(
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.8),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check_circle,
-                        color: Colors.green,
-                        size: 60,
+                if (isInCart)
+                  IgnorePointer(
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.8),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_circle,
+                          color: Colors.green,
+                          size: 60,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -515,7 +537,7 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'GIỎ HÀNG CỦA BẠN',
+                        'ĐƠN HÀNG CỦA BẠN',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -530,7 +552,7 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                   const Divider(),
                   Expanded(
                     child: _cart.isEmpty
-                        ? const Center(child: Text('Giỏ hàng trống'))
+                        ? const Center(child: Text('Đơn hàng trống'))
                         : ListView.separated(
                             itemCount: _cart.length,
                             separatorBuilder: (_, __) => const Divider(),
@@ -729,7 +751,7 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Nhấn để xem chi tiết giỏ hàng',
+                'Nhấn để xem chi tiết đơn hàng',
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const SizedBox(height: 8),

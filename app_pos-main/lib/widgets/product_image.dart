@@ -19,6 +19,19 @@ class ProductImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final trimmedUrl = imageUrl.trim();
+    final uri = Uri.tryParse(trimmedUrl);
+
+    if (trimmedUrl.isEmpty ||
+        uri == null ||
+        (uri.hasScheme && !uri.hasAuthority) ||
+        (!trimmedUrl.startsWith('assets/') &&
+            uri.hasScheme &&
+            uri.scheme != 'http' &&
+            uri.scheme != 'https') ||
+        (!trimmedUrl.startsWith('assets/') && !uri.hasScheme)) {
+      return _buildFallback(context, ArgumentError('Invalid image URL'), null);
+    }
+
     if (trimmedUrl.startsWith('assets/')) {
       return Image.asset(
         trimmedUrl,

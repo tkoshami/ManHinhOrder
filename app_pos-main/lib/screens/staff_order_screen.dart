@@ -195,9 +195,22 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: noteController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Ghi chú (ví dụ: ít đá, không đường...)',
-                      border: OutlineInputBorder(),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.blueAccent, width: 2.2),
+                      ),
                     ),
                   ),
                 ],
@@ -222,7 +235,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
                 backgroundColor: Colors.blueAccent,
               ),
               child: const Text(
-                'THÊM VÀO GIỎ',
+                'THÊM VÀO ĐƠN',
                 style: TextStyle(color: Colors.white),
               ),
             ),
@@ -344,9 +357,22 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: noteController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Ghi chú',
-                      border: OutlineInputBorder(),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.blueAccent, width: 2.2),
+                      ),
                     ),
                   ),
                 ],
@@ -592,8 +618,19 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
             decoration: InputDecoration(
               hintText: 'Tìm món...',
               prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.blueAccent, width: 2.2),
               ),
             ),
           ),
@@ -656,7 +693,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
         const Padding(
           padding: EdgeInsets.all(16),
           child: Text(
-            'GIỎ HÀNG',
+            'ĐƠN HÀNG',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),

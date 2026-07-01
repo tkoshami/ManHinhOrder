@@ -815,6 +815,7 @@ class _OrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 380;
     final isCancelledDraft =
         order.status == OrderStatus.cancelled &&
         order.source == OrderSource.posStaff;
@@ -844,9 +845,21 @@ class _OrderTile extends StatelessWidget {
 
     return ListTile(
       onTap: onTap,
+      dense: isCompact,
+      horizontalTitleGap: isCompact ? 8 : 16,
+      minLeadingWidth: isCompact ? 34 : null,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 8 : 16,
+        vertical: isCompact ? 2 : 0,
+      ),
       leading: CircleAvatar(
+        radius: isCompact ? 17 : 20,
         backgroundColor: accentColor.withValues(alpha: 0.12),
-        child: Icon(Icons.receipt_long, color: accentColor, size: 20),
+        child: Icon(
+          Icons.receipt_long,
+          color: accentColor,
+          size: isCompact ? 18 : 20,
+        ),
       ),
       title: Row(
         children: [
@@ -855,15 +868,19 @@ class _OrderTile extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              order.tableOrCustomer,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                order.tableOrCustomer,
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           if (isCancelledDraft) ...[
@@ -887,7 +904,10 @@ class _OrderTile extends StatelessWidget {
           ],
         ],
       ),
-      subtitle: Row(
+      subtitle: Wrap(
+        spacing: 4,
+        runSpacing: 2,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Icon(Icons.access_time, size: 12, color: Colors.grey[400]),
           const SizedBox(width: 4),
@@ -901,21 +921,29 @@ class _OrderTile extends StatelessWidget {
           Text(methodName, style: TextStyle(fontSize: 12, color: methodColor)),
         ],
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            currencyFormat.format(order.total),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
+      trailing: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isCompact ? 86 : 112),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              currencyFormat.format(order.total),
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+                fontSize: isCompact ? 12 : 14,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
-          Text(
-            '${order.items.length} món',
-            style: TextStyle(fontSize: 11, color: Colors.grey[400]),
-          ),
-        ],
+            Text(
+              '${order.items.length} món',
+              style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+            ),
+          ],
+        ),
       ),
     );
   }

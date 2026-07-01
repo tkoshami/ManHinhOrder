@@ -86,7 +86,7 @@ class _CartItemTileState extends State<CartItemTile> {
             onPressed: widget.onDecrement,
           ),
           SizedBox(
-            width: 40,
+            width: 45,
             child: TextField(
               controller: _controller,
               textAlign: TextAlign.center,
@@ -95,29 +95,42 @@ class _CartItemTileState extends State<CartItemTile> {
                 decimal: false,
               ),
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
-                contentPadding: EdgeInsets.zero,
-                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(color: Colors.black54, width: 1.2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(color: Colors.black54, width: 1.2),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(color: Colors.green, width: 2.0),
+                ),
               ),
               onChanged: (v) {
-                if (v.isEmpty || v == '0') {
-                  widget.onQuantityChanged?.call(0);
-                } else {
-                  final val = int.tryParse(v) ?? 0;
-                  if (val > 100) {
-                    _controller.text = '100';
-                    _controller.selection = TextSelection.fromPosition(
-                      const TextPosition(offset: 3),
-                    );
-                    widget.onQuantityChanged?.call(100);
+                  if (v.isEmpty || v == '0') {
+                    widget.onQuantityChanged?.call(0);
                   } else {
-                    widget.onQuantityChanged?.call(val);
+                    final val = int.tryParse(v) ?? 0;
+                    if (val > 100) {
+                      _controller.text = '100';
+                      _controller.selection = TextSelection.fromPosition(
+                        const TextPosition(offset: 3),
+                      );
+                      widget.onQuantityChanged?.call(100);
+                    } else {
+                      widget.onQuantityChanged?.call(val);
+                    }
                   }
-                }
-              },
+                },
+              ),
             ),
-          ),
           IconButton(
             icon: const Icon(
               Icons.add_circle_outline,

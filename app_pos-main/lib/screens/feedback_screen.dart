@@ -131,10 +131,24 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               const SizedBox(height: 24),
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
+                style: const TextStyle(color: Colors.black),
+                decoration: InputDecoration(
                   labelText: 'Tên của bạn',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.orange, width: 2.2),
+                  ),
+                  prefixIcon: const Icon(Icons.person),
                 ),
                 validator: (v) => (v == null || v.isEmpty) ? 'Vui lòng nhập tên' : null,
               ),
@@ -142,10 +156,24 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               TextFormField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
+                style: const TextStyle(color: Colors.black),
+                decoration: InputDecoration(
                   labelText: 'Số điện thoại',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.orange, width: 2.2),
+                  ),
+                  prefixIcon: const Icon(Icons.phone),
                 ),
                 validator: (v) => (v == null || v.isEmpty) ? 'Vui lòng nhập SĐT' : null,
               ),
@@ -153,9 +181,23 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               TextFormField(
                 controller: _contentController,
                 maxLines: 4,
-                decoration: const InputDecoration(
+                style: const TextStyle(color: Colors.black),
+                decoration: InputDecoration(
                   labelText: 'Nội dung phản hồi',
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.orange, width: 2.2),
+                  ),
                   alignLabelWithHint: true,
                 ),
                 validator: (v) => (v == null || v.isEmpty) ? 'Vui lòng nhập nội dung' : null,

@@ -77,6 +77,20 @@ class _OrderScreenState extends State<OrderScreen> {
     return desiredWidth.clamp(0, availableWidth).toDouble();
   }
 
+  String _compactOrderTypeLabel(String type) {
+    final index = _orderTypes.indexOf(type);
+    switch (index) {
+      case 0:
+        return 'Di';
+      case 1:
+        return 'Tai';
+      case 2:
+        return 'Ship';
+      default:
+        return type;
+    }
+  }
+
   void _syncState(VoidCallback fn) {
     setState(fn);
     _sheetState?.call(() {});
@@ -345,14 +359,14 @@ class _OrderScreenState extends State<OrderScreen> {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Xác nhận xóa giỏ hàng',
+                'Xác nhận xóa đơn hàng',
                 style: TextStyle(fontSize: 18),
               ),
             ),
           ],
         ),
         content: const Text(
-          'Bạn có chắc chắn muốn xóa toàn bộ các món trong giỏ hàng hiện tại không?',
+          'Bạn có chắc chắn muốn xóa toàn bộ các món trong đơn hàng hiện tại không?',
           style: TextStyle(fontSize: 16),
         ),
         actionsPadding: const EdgeInsets.symmetric(
@@ -656,22 +670,26 @@ class _OrderScreenState extends State<OrderScreen> {
                                 color: Colors.green.shade600,
                               ),
                               suffixText: '₫',
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
+                              filled: true,
+                              fillColor: Colors.white,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.brown.shade300,
-                                ),
+                                borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Colors.black54, width: 1.5),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
                                   color: Colors.brown.shade700,
-                                  width: 2,
+                                  width: 2.2,
                                 ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
                               ),
                             ),
                           ),
@@ -1360,6 +1378,206 @@ class _OrderScreenState extends State<OrderScreen> {
     ),
   );
 
+  Widget _buildReceiptItems(SavedOrder order) {
+    final isCompact = MediaQuery.sizeOf(context).width < 380;
+
+    if (isCompact) {
+      return Column(
+        children: [
+          const Divider(color: Colors.brown, thickness: 0.2),
+          ...order.items.asMap().entries.map((entry) {
+            final index = entry.key + 1;
+            final item = entry.value;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        child: Text(
+                          '$index.',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          item.product.name,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 82),
+                        child: Text(
+                          currencyFormat.format(item.total),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 24, top: 2),
+                    child: Text(
+                      '${currencyFormat.format(item.product.price)} x ${item.quantity}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                  if (item.discountPercent > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24, top: 2),
+                      child: Text(
+                        '-${item.discountPercent.toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  const Divider(color: Colors.brown, thickness: 0.1),
+                ],
+              ),
+            );
+          }),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        const Divider(color: Colors.brown, thickness: 0.2),
+        Row(
+          children: const [
+            SizedBox(
+              width: 30,
+              child: Text(
+                'STT',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                'Ten mon',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              width: 80,
+              child: Text(
+                'Don gia',
+                textAlign: TextAlign.right,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              width: 40,
+              child: Text(
+                'SL',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              width: 80,
+              child: Text(
+                'T.Tien',
+                textAlign: TextAlign.right,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        const Divider(color: Colors.brown, thickness: 0.2),
+        ...order.items.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final item = entry.value;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 30,
+                      child: Text(
+                        '${idx + 1}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.product.name,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          if (item.discountPercent > 0)
+                            Text(
+                              '-${item.discountPercent.toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 11,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        currencyFormat.format(item.product.price),
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 40,
+                      child: Text(
+                        'x${item.quantity}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        currencyFormat.format(item.total),
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(color: Colors.brown, thickness: 0.1),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
   void _showReceiptDialogForOrder(
     SavedOrder order,
     String paymentMethod, {
@@ -1373,7 +1591,7 @@ class _OrderScreenState extends State<OrderScreen> {
         backgroundColor: const Color(0xFFF5EFEB),
         child: Container(
           width: _responsiveDialogWidth(context, 500),
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(_isHandheldPos(context) ? 16 : 24),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1405,6 +1623,9 @@ class _OrderScreenState extends State<OrderScreen> {
                   style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
                 const SizedBox(height: 20),
+                if (_isHandheldPos(context))
+                  _buildReceiptItems(order)
+                else ...[
                 const Divider(color: Colors.brown, thickness: 0.2),
                 Row(
                   children: const [
@@ -1530,6 +1751,7 @@ class _OrderScreenState extends State<OrderScreen> {
                     ),
                   );
                 }),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1792,8 +2014,19 @@ class _OrderScreenState extends State<OrderScreen> {
                       ],
                       decoration: InputDecoration(
                         suffixText: '%',
+                        filled: true,
+                        fillColor: Colors.white,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.orange, width: 2.2),
                         ),
                         hintText: '0 - 100',
                       ),
@@ -1862,8 +2095,19 @@ class _OrderScreenState extends State<OrderScreen> {
                       maxLength: 100,
                       decoration: InputDecoration(
                         hintText: 'VD: không rau, thêm chả...',
+                        filled: true,
+                        fillColor: Colors.white,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.orange, width: 2.2),
                         ),
                         counterText: '${noteController.text.length}/100',
                       ),
@@ -2042,9 +2286,21 @@ class _OrderScreenState extends State<OrderScreen> {
                             decoration: InputDecoration(
                               contentPadding: const EdgeInsets.symmetric(
                                 vertical: 8,
+                                horizontal: 12,
                               ),
+                              filled: true,
+                              fillColor: Colors.white,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(30),
+                                borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(30),
+                                borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(30),
+                                borderSide: const BorderSide(color: Colors.blue, width: 2.2),
                               ),
                             ),
                             controller: qtyController,
@@ -2101,8 +2357,19 @@ class _OrderScreenState extends State<OrderScreen> {
                       ],
                       decoration: InputDecoration(
                         suffixText: '%',
+                        filled: true,
+                        fillColor: Colors.white,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.blue, width: 2.2),
                         ),
                       ),
                       onChanged: (v) {
@@ -2141,8 +2408,19 @@ class _OrderScreenState extends State<OrderScreen> {
                       maxLength: 100,
                       decoration: InputDecoration(
                         hintText: 'VD: không rau, thêm chả...',
+                        filled: true,
+                        fillColor: Colors.white,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.orange, width: 2.2),
                         ),
                         counterText: '${noteController.text.length}/100',
                       ),
@@ -2300,8 +2578,19 @@ class _OrderScreenState extends State<OrderScreen> {
                         Icons.fastfood,
                         color: Colors.green,
                       ),
+                      filled: true,
+                      fillColor: Colors.white,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.green, width: 2.2),
                       ),
                       counterText: '${nameController.text.length}/60',
                     ),
@@ -2328,8 +2617,19 @@ class _OrderScreenState extends State<OrderScreen> {
                               Icons.monetization_on,
                               color: Colors.orange,
                             ),
+                            filled: true,
+                            fillColor: Colors.white,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.orange, width: 2.2),
                             ),
                           ),
                         ),
@@ -2345,8 +2645,19 @@ class _OrderScreenState extends State<OrderScreen> {
                               Icons.category,
                               color: Colors.blue,
                             ),
+                            filled: true,
+                            fillColor: Colors.white,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.blue, width: 2.2),
                             ),
                           ),
                           items: _categories
@@ -2377,8 +2688,19 @@ class _OrderScreenState extends State<OrderScreen> {
                       labelText: 'Link hình ảnh (URL)',
                       hintText: 'https://...',
                       prefixIcon: const Icon(Icons.image, color: Colors.purple),
+                      filled: true,
+                      fillColor: Colors.white,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.purple, width: 2.2),
                       ),
                       helperText: 'Để trống để dùng hình mặc định',
                     ),
@@ -2715,7 +3037,7 @@ class _OrderScreenState extends State<OrderScreen> {
                     child: Row(
                       children: [
                         const Text(
-                          'GIỎ HÀNG',
+                          'ĐƠN HÀNG',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -2764,8 +3086,19 @@ class _OrderScreenState extends State<OrderScreen> {
                   decoration: InputDecoration(
                     hintText: 'Tìm món...',
                     prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.orange, width: 2.2),
                     ),
                     isDense: true,
                   ),
@@ -2865,8 +3198,8 @@ class _OrderScreenState extends State<OrderScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
-                                    child: Image.network(
-                                      product.imageUrl,
+                                    child: ProductImage(
+                                      imageUrl: product.imageUrl,
                                       fit: BoxFit.cover,
                                       width: double.infinity,
                                     ),
@@ -2994,7 +3327,7 @@ class _OrderScreenState extends State<OrderScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Giỏ hàng (${_cart.length} món)',
+                              'Đơn hàng (${_cart.length} món)',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
@@ -3275,8 +3608,19 @@ class _OrderScreenState extends State<OrderScreen> {
                                 decoration: InputDecoration(
                                   hintText: 'Tìm món...',
                                   prefixIcon: const Icon(Icons.search),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(color: Colors.orange, width: 2.2),
                                   ),
                                 ),
                               ),
@@ -3411,8 +3755,9 @@ class _OrderScreenState extends State<OrderScreen> {
                                                             .start,
                                                     children: [
                                                       Expanded(
-                                                        child: Image.network(
-                                                          product.imageUrl,
+                                                        child: ProductImage(
+                                                          imageUrl:
+                                                              product.imageUrl,
                                                           fit: BoxFit.cover,
                                                           width:
                                                               double.infinity,
@@ -3511,7 +3856,7 @@ class _OrderScreenState extends State<OrderScreen> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: const Text(
-              'GIỎ HÀNG',
+              'ĐƠN HÀNG',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
@@ -3558,7 +3903,9 @@ class _OrderScreenState extends State<OrderScreen> {
                         SizedBox(width: isHandheldPos ? 3 : 6),
                         Flexible(
                           child: Text(
-                            type,
+                            isHandheldPos
+                                ? _compactOrderTypeLabel(type)
+                                : type,
                             style: TextStyle(
                               fontSize: isHandheldPos ? 11 : 14,
                               color: isSelected ? Colors.white : Colors.black87,
@@ -3595,9 +3942,9 @@ class _OrderScreenState extends State<OrderScreen> {
                     return InkWell(
                       onTap: () => _showEditCartDialog(ctx, index),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: panelPadding,
+                          vertical: isHandheldPos ? 6 : 8,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3935,7 +4282,7 @@ class _OrderScreenState extends State<OrderScreen> {
                           size: 18,
                         ),
                         label: const Text(
-                          'XÓA GIỎ HÀNG',
+                          'XÓA ĐƠN HÀNG',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -4081,13 +4428,8 @@ class _VATInputState extends State<_VATInput> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 60,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(4),
-      ),
+    return SizedBox(
+      width: 70,
       child: TextField(
         textAlign: TextAlign.center,
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -4095,10 +4437,23 @@ class _VATInputState extends State<_VATInput> {
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
         ],
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           isDense: true,
-          contentPadding: EdgeInsets.symmetric(vertical: 8),
-          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.orange, width: 2.2),
+          ),
         ),
         controller: _controller,
         onChanged: (v) {
@@ -4166,7 +4521,7 @@ class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
   Widget build(BuildContext context) {
     final bool isHandheldPos = MediaQuery.sizeOf(context).shortestSide <= 380;
     return SizedBox(
-      width: isHandheldPos ? 38 : 50,
+      width: isHandheldPos ? 45 : 55,
       child: TextField(
         textAlign: TextAlign.center,
         keyboardType: const TextInputType.numberWithOptions(
@@ -4176,27 +4531,40 @@ class _CartItemQuantityInputState extends State<_CartItemQuantityInput> {
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: InputDecoration(
           isDense: true,
-          contentPadding: EdgeInsets.symmetric(vertical: isHandheldPos ? 2 : 4),
-          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(vertical: isHandheldPos ? 8 : 10, horizontal: 4),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: const BorderSide(color: Colors.green, width: 2.2),
+          ),
         ),
         controller: _controller,
         onChanged: (v) {
-          if (v.isEmpty || v == '0') {
-            widget.onRemove();
-          } else {
-            final val = int.tryParse(v) ?? 0;
-            if (val > 100) {
-              _controller.text = '100';
-              _controller.selection = TextSelection.fromPosition(
-                const TextPosition(offset: 3),
-              );
-              widget.onChanged(100);
+            if (v.isEmpty || v == '0') {
+              widget.onRemove();
             } else {
-              widget.onChanged(val);
+              final val = int.tryParse(v) ?? 0;
+              if (val > 100) {
+                _controller.text = '100';
+                _controller.selection = TextSelection.fromPosition(
+                  const TextPosition(offset: 3),
+                );
+                widget.onChanged(100);
+              } else {
+                widget.onChanged(val);
+              }
             }
-          }
-        },
-      ),
+          },
+        ),
     );
   }
 }

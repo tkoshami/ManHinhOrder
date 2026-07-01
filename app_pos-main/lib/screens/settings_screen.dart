@@ -88,13 +88,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(),
             TextField(
               controller: _accountNoController,
-              decoration: const InputDecoration(labelText: 'Số tài khoản'),
+              decoration: InputDecoration(
+                labelText: 'Số tài khoản',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.orange, width: 2.2),
+                ),
+              ),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _accountNameController,
-              decoration: const InputDecoration(labelText: 'Tên chủ tài khoản (Không dấu)'),
+              decoration: InputDecoration(
+                labelText: 'Tên chủ tài khoản (Không dấu)',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.black54, width: 1.5),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.orange, width: 2.2),
+                ),
+              ),
               textCapitalization: TextCapitalization.characters,
             ),
             const SizedBox(height: 32),
