@@ -3860,10 +3860,16 @@ class _OrderScreenState extends State<OrderScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
-        Padding(
-          padding: EdgeInsets.symmetric(
+        Container(
+          margin: EdgeInsets.symmetric(
             horizontal: panelPadding,
-            vertical: isHandheldPos ? 6 : 8,
+            vertical: isHandheldPos ? 6 : 10,
+          ),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300, width: 1),
           ),
           child: Row(
             children: _orderTypes.map((type) {
@@ -3883,35 +3889,44 @@ class _OrderScreenState extends State<OrderScreen> {
               }
               final isSelected = _selectedOrderType == type;
               return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isHandheldPos ? 2 : 4,
-                  ),
-                  child: ChoiceChip(
-                    showCheckmark: false,
+                child: GestureDetector(
+                  onTap: () => _syncState(() => _selectedOrderType = type),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
                     padding: EdgeInsets.symmetric(
-                      vertical: isHandheldPos ? 8 : 10,
+                      vertical: isHandheldPos ? 10 : 12,
                     ),
-                    label: Row(
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.orange : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: isSelected
+                          ? [
+                            BoxShadow(
+                              color: Colors.orange.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                          : null,
+                    ),
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           icon,
                           size: isHandheldPos ? 18 : 20,
-                          color: isSelected ? Colors.white : Colors.grey,
+                          color: isSelected ? Colors.white : Colors.grey[600],
                         ),
-                        SizedBox(width: isHandheldPos ? 3 : 6),
+                        const SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                            isHandheldPos
-                                ? _compactOrderTypeLabel(type)
-                                : type,
+                            isHandheldPos ? _compactOrderTypeLabel(type) : type,
                             style: TextStyle(
-                              fontSize: isHandheldPos ? 11 : 14,
+                              fontSize: isHandheldPos ? 11 : 13,
                               color: isSelected ? Colors.white : Colors.black87,
                               fontWeight: isSelected
                                   ? FontWeight.bold
-                                  : FontWeight.normal,
+                                  : FontWeight.w500,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -3919,11 +3934,6 @@ class _OrderScreenState extends State<OrderScreen> {
                         ),
                       ],
                     ),
-                    selected: isSelected,
-                    selectedColor: Colors.orange,
-                    backgroundColor: Colors.grey[200],
-                    onSelected: (s) =>
-                        _syncState(() => _selectedOrderType = type),
                   ),
                 ),
               );
@@ -3933,7 +3943,43 @@ class _OrderScreenState extends State<OrderScreen> {
         const Divider(),
         Expanded(
           child: _cart.isEmpty
-              ? const Center(child: Text('Chưa có món nào'))
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.shopping_basket_outlined,
+                          size: 64,
+                          color: Colors.grey[300],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Chưa có món nào',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Vui lòng chọn món từ menu để thêm vào đơn hàng',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
               : ListView.separated(
                   itemCount: _cart.length,
                   separatorBuilder: (_, _) => const Divider(),
