@@ -223,9 +223,9 @@ class PrintService {
 
     await SunmiPrinter.printText(separator);
     await SunmiPrinter.printText(
-      '${_fitLeft('Ten mon', nameWidth)} '
+      '${_fitLeft('Tên món', nameWidth)} '
       '${_fitRight('SL', qtyWidth)} '
-      '${_fitRight('Tien', totalWidth)}',
+      '${_fitRight('T.tiền', totalWidth)}',
       style: SunmiTextStyle(bold: true),
     );
     await SunmiPrinter.printText(separator);
