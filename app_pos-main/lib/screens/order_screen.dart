@@ -3881,16 +3881,18 @@ class _OrderScreenState extends State<OrderScreen> {
       children: [
         if (!isMobile)
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: const Text(
+            padding: EdgeInsets.all(isHandheldPos ? 8 : 16),
+            child: Text(
               'ĐƠN HÀNG',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  fontSize: isHandheldPos ? 16 : 18,
+                  fontWeight: FontWeight.bold),
             ),
           ),
         Container(
           margin: EdgeInsets.symmetric(
             horizontal: panelPadding,
-            vertical: isHandheldPos ? 6 : 10,
+            vertical: isHandheldPos ? 4 : 10,
           ),
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
@@ -3971,40 +3973,46 @@ class _OrderScreenState extends State<OrderScreen> {
         Expanded(
           child: _cart.isEmpty
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          shape: BoxShape.circle,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(isHandheldPos ? 16 : 24),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.shopping_basket_outlined,
+                            size: isHandheldPos ? 48 : 64,
+                            color: Colors.grey[300],
+                          ),
                         ),
-                        child: Icon(
-                          Icons.shopping_basket_outlined,
-                          size: 64,
-                          color: Colors.grey[300],
+                        SizedBox(height: isHandheldPos ? 12 : 24),
+                        Text(
+                          'Chưa có món nào',
+                          style: TextStyle(
+                            fontSize: isHandheldPos ? 16 : 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[500],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Chưa có món nào',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[500],
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'Vui lòng chọn món từ menu để thêm vào đơn hàng',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: isHandheldPos ? 12 : 14,
+                              color: Colors.grey[400],
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Vui lòng chọn món từ menu để thêm vào đơn hàng',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[400],
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 )
               : ListView.separated(
@@ -4176,32 +4184,36 @@ class _OrderScreenState extends State<OrderScreen> {
         ),
         const Divider(),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(isHandheldPos ? 10 : 16),
           child: Column(
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Tạm tính:',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                        fontSize: isHandheldPos ? 14 : 16,
+                        fontWeight: FontWeight.w500),
                   ),
                   Text(
                     currencyFormat.format(_subtotal),
-                    style: const TextStyle(
-                      fontSize: 16,
+                    style: TextStyle(
+                      fontSize: isHandheldPos ? 14 : 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: isHandheldPos ? 4 : 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'VAT (%):',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                        fontSize: isHandheldPos ? 14 : 16,
+                        fontWeight: FontWeight.w500),
                   ),
                   isAdmin
                       ? _VATInput(
@@ -4211,8 +4223,8 @@ class _OrderScreenState extends State<OrderScreen> {
                         )
                       : Text(
                           '${_vatPercent.toStringAsFixed(0)}%',
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: TextStyle(
+                            fontSize: isHandheldPos ? 14 : 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -4223,8 +4235,8 @@ class _OrderScreenState extends State<OrderScreen> {
                 children: [
                   Text(
                     currencyFormat.format(_vatAmount),
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: TextStyle(
+                      fontSize: isHandheldPos ? 12 : 14,
                       color: Colors.grey,
                       fontWeight: FontWeight.w500,
                     ),
@@ -4235,21 +4247,23 @@ class _OrderScreenState extends State<OrderScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'TỔNG CỘNG:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: isHandheldPos ? 14 : 16),
                   ),
                   Text(
                     currencyFormat.format(_total),
-                    style: const TextStyle(
-                      fontSize: 20,
+                    style: TextStyle(
+                      fontSize: isHandheldPos ? 18 : 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.red,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: isHandheldPos ? 8 : 16),
               if (isUser) ...[
                 SizedBox(
                   width: double.infinity,
@@ -4288,7 +4302,8 @@ class _OrderScreenState extends State<OrderScreen> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: EdgeInsets.symmetric(
+                          vertical: isHandheldPos ? 10 : 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -4336,7 +4351,8 @@ class _OrderScreenState extends State<OrderScreen> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: EdgeInsets.symmetric(
+                          vertical: isHandheldPos ? 10 : 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -4364,7 +4380,8 @@ class _OrderScreenState extends State<OrderScreen> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: EdgeInsets.symmetric(
+                              vertical: isHandheldPos ? 10 : 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -4391,7 +4408,8 @@ class _OrderScreenState extends State<OrderScreen> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orangeAccent,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: EdgeInsets.symmetric(
+                              vertical: isHandheldPos ? 10 : 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -4442,7 +4460,8 @@ class _OrderScreenState extends State<OrderScreen> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: EdgeInsets.symmetric(
+                          vertical: isHandheldPos ? 12 : 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
