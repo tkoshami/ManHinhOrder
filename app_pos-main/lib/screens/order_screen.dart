@@ -30,6 +30,9 @@ class _OrderScreenState extends State<OrderScreen> {
   List<CartItem> _cart = [];
   List<SavedOrder> get _pendingOrders => globalPendingOrders;
 
+  bool _isSelectionMode = false;
+  Set<int> _selectedIndices = {};
+
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
@@ -365,6 +368,14 @@ class _OrderScreenState extends State<OrderScreen> {
 
   void _clearCart() {
     if (_cart.isEmpty) return;
+    _syncState(() {
+      _isSelectionMode = true;
+      _selectedIndices.clear();
+    });
+  }
+
+  void _deleteSelectedItems() {
+    if (_selectedIndices.isEmpty) return;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -375,7 +386,80 @@ class _OrderScreenState extends State<OrderScreen> {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Xác nhận xóa đơn hàng',
+                'Xác nhận xóa món đã chọn',
+                style: TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa ${_selectedIndices.length} món đã chọn không?',
+          style: const TextStyle(fontSize: 16),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text(
+              'KHÔNG',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              _syncState(() {
+                final sortedIndices = _selectedIndices.toList()..sort((a, b) => b.compareTo(a));
+                for (final index in sortedIndices) {
+                  _cart.removeAt(index);
+                }
+                _selectedIndices.clear();
+                _isSelectionMode = false;
+              });
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text(
+              'XÁC NHẬN',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteAllItems() {
+    if (_cart.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Xác nhận xóa toàn bộ đơn hàng',
                 style: TextStyle(fontSize: 18),
               ),
             ),
@@ -408,7 +492,11 @@ class _OrderScreenState extends State<OrderScreen> {
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
-              _syncState(() => _cart = []);
+              _syncState(() {
+                _cart = [];
+                _isSelectionMode = false;
+                _selectedIndices.clear();
+              });
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
@@ -606,7 +694,8 @@ class _OrderScreenState extends State<OrderScreen> {
                         const SizedBox(height: 24),
                         _PaymentInfoRow(
                           label: 'Tổng số lượng món:',
-                          value: '$totalQty món',
+                          value:
+                              '${order.items.length} loại món - $totalQty món',
                         ),
                         _PaymentInfoRow(
                           label: 'Tạm tính:',
@@ -980,18 +1069,34 @@ class _OrderScreenState extends State<OrderScreen> {
         ? 'cash'
         : (method == 'Chuyển khoản' ? 'qr_code' : 'card');
 
+    final paidAt = DateTime.now();
+    final cashChangeAmount =
+        paymentMethod == 'cash' && receivedAmount != null
+        ? receivedAmount - order.totalAmount
+        : null;
+    final transactionCode = order.id ?? paidAt.millisecondsSinceEpoch.toString();
+    final cashierName = widget.user.name;
+
     SavedOrder localCompletedOrder() => SavedOrder(
       id: order.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
       shiftId: order.shiftId,
       tableOrCustomer: order.tableOrCustomer,
       items: List<CartItem>.from(order.items),
-      dateTime: DateTime.now(),
+      dateTime: paidAt,
       subtotal: order.subtotal,
       discountAmount: order.discountAmount,
       vatRate: order.vatRate,
       vatAmount: order.vatAmount,
       totalAmount: order.totalAmount,
       paymentMethod: paymentMethod,
+      cashReceivedAmount: paymentMethod == 'cash' ? receivedAmount : null,
+      cashChangeAmount: cashChangeAmount,
+      cashReturnAmount: cashChangeAmount,
+      transferMethod: paymentMethod == 'qr_code' ? 'VietQR' : null,
+      paidAmount: paymentMethod == 'qr_code' ? order.totalAmount : null,
+      transactionCode: paymentMethod == 'qr_code' ? transactionCode : null,
+      paidAt: paidAt,
+      cashierName: cashierName,
       source: order.source,
       status: OrderStatus.completed,
     );
@@ -1008,6 +1113,14 @@ class _OrderScreenState extends State<OrderScreen> {
       currentOrder = await SupabaseService.completePendingOrder(
         order,
         paymentMethod,
+        cashReceivedAmount: paymentMethod == 'cash' ? receivedAmount : null,
+        cashChangeAmount: cashChangeAmount,
+        cashReturnAmount: cashChangeAmount,
+        transferMethod: paymentMethod == 'qr_code' ? 'VietQR' : null,
+        paidAmount: paymentMethod == 'qr_code' ? order.totalAmount : null,
+        transactionCode: paymentMethod == 'qr_code' ? transactionCode : null,
+        paidAt: paidAt,
+        cashierName: cashierName,
       );
     }
 
@@ -1026,7 +1139,16 @@ class _OrderScreenState extends State<OrderScreen> {
       return;
     }
 
-    final completedOrder = currentOrder;
+    final completedOrder = currentOrder.copyWith(
+      cashReceivedAmount: paymentMethod == 'cash' ? receivedAmount : null,
+      cashChangeAmount: cashChangeAmount,
+      cashReturnAmount: cashChangeAmount,
+      transferMethod: paymentMethod == 'qr_code' ? 'VietQR' : null,
+      paidAmount: paymentMethod == 'qr_code' ? order.totalAmount : null,
+      transactionCode: paymentMethod == 'qr_code' ? transactionCode : null,
+      paidAt: paidAt,
+      cashierName: cashierName,
+    );
 
     _syncState(() {
       globalPendingOrders.removeWhere((o) => o.id == order.id);
@@ -1503,8 +1625,11 @@ class _OrderScreenState extends State<OrderScreen> {
     double initDiscount = 0,
     String initNote = '',
   }) {
+    final bool isAdmin = widget.user.role == UserRole.admin;
     final discountController = TextEditingController(
-      text: initDiscount == 0 ? '0' : initDiscount.toStringAsFixed(0),
+      text: (isAdmin ? initDiscount : 0) == 0
+          ? '0'
+          : (isAdmin ? initDiscount : 0).toStringAsFixed(0),
     );
     final noteController = TextEditingController(text: initNote);
 
@@ -1589,6 +1714,7 @@ class _OrderScreenState extends State<OrderScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: discountController,
+                      enabled: isAdmin,
                       onTap: () => discountController.selection = TextSelection(
                         baseOffset: 0,
                         extentOffset: discountController.text.length,
@@ -1643,35 +1769,37 @@ class _OrderScreenState extends State<OrderScreen> {
                         setDialogState(() {});
                       },
                     ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [5, 10, 15, 20, 50]
-                          .map(
-                            (pct) => SizedBox(
-                              width: 75,
-                              height: 45,
-                              child: ActionChip(
-                                padding: EdgeInsets.zero,
-                                label: Center(
-                                  child: Text(
-                                    '$pct%',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                    if (isAdmin) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [5, 10, 15, 20, 50]
+                            .map(
+                              (pct) => SizedBox(
+                                width: 75,
+                                height: 45,
+                                child: ActionChip(
+                                  padding: EdgeInsets.zero,
+                                  label: Center(
+                                    child: Text(
+                                      '$pct%',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
+                                  onPressed: () {
+                                    discountController.text = pct.toString();
+                                    setDialogState(() {});
+                                  },
                                 ),
-                                onPressed: () {
-                                  discountController.text = pct.toString();
-                                  setDialogState(() {});
-                                },
                               ),
-                            ),
-                          )
-                          .toList(),
-                    ),
+                            )
+                            .toList(),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     const Text(
                       'Ghi chú món:',
@@ -1779,10 +1907,11 @@ class _OrderScreenState extends State<OrderScreen> {
   void _showEditCartDialog(BuildContext context, int cartIndex) {
     if (cartIndex < 0 || cartIndex >= _cart.length) return;
     final item = _cart[cartIndex];
+    final bool isAdmin = widget.user.role == UserRole.admin;
     final discountController = TextEditingController(
-      text: item.discountPercent == 0
+      text: (isAdmin ? item.discountPercent : 0) == 0
           ? '0'
-          : item.discountPercent.toStringAsFixed(0),
+          : (isAdmin ? item.discountPercent : 0).toStringAsFixed(0),
     );
     final noteController = TextEditingController(text: item.note);
     int quantity = item.quantity;
@@ -1932,6 +2061,7 @@ class _OrderScreenState extends State<OrderScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: discountController,
+                      enabled: isAdmin,
                       onTap: () => discountController.selection = TextSelection(
                         baseOffset: 0,
                         extentOffset: discountController.text.length,
@@ -2499,7 +2629,7 @@ class _OrderScreenState extends State<OrderScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Text('Số món: ${order.items.length}'),
+                    Text('Số món: ${order.items.length} loại - ${order.totalQuantity} món'),
                   ],
                 ),
                 trailing: const Icon(Icons.chevron_right),
@@ -3445,6 +3575,17 @@ class _OrderScreenState extends State<OrderScreen> {
                       onQuantityChanged: (val) =>
                           _syncState(() => item.quantity = val),
                       onRemove: () => _syncState(() => _cart.removeAt(index)),
+                      isSelectionMode: _isSelectionMode,
+                      isSelected: _selectedIndices.contains(index),
+                      onSelectedChanged: (val) {
+                        _syncState(() {
+                          if (val == true) {
+                            _selectedIndices.add(index);
+                          } else {
+                            _selectedIndices.remove(index);
+                          }
+                        });
+                      },
                     );
                   },
                 ),
@@ -3465,6 +3606,13 @@ class _OrderScreenState extends State<OrderScreen> {
             onChanged: (val) => _syncState(() => _vatPercent = val),
           ),
           onClearCart: _cart.isEmpty ? null : _clearCart,
+          isSelectionMode: _isSelectionMode,
+          onDeleteSelected: _selectedIndices.isEmpty ? null : _deleteSelectedItems,
+          onCancelSelection: () => _syncState(() {
+            _isSelectionMode = false;
+            _selectedIndices.clear();
+          }),
+          onDeleteAll: _deleteAllItems,
           onConfirmOrder: _cart.isEmpty ? null : _confirmOrder,
           onCheckout: _cart.isEmpty
               ? null
@@ -3828,6 +3976,9 @@ class _CartItemTile extends StatelessWidget {
   final Function(int) onUpdateQuantity;
   final Function(int) onQuantityChanged;
   final VoidCallback onRemove;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final Function(bool?) onSelectedChanged;
 
   const _CartItemTile({
     required this.item,
@@ -3840,12 +3991,15 @@ class _CartItemTile extends StatelessWidget {
     required this.onUpdateQuantity,
     required this.onQuantityChanged,
     required this.onRemove,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    required this.onSelectedChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: isSelectionMode ? () => onSelectedChanged(!isSelected) : onTap,
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: panelPadding,
@@ -3857,6 +4011,18 @@ class _CartItemTile extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (isSelectionMode)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Checkbox(
+                      value: isSelected,
+                      onChanged: onSelectedChanged,
+                      activeColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: ProductImage(
@@ -3894,17 +4060,18 @@ class _CartItemTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  constraints: const BoxConstraints(),
-                  padding: const EdgeInsets.all(4),
-                  icon: const Icon(
-                    Icons.delete_sweep_outlined,
-                    color: Colors.red,
-                    size: 20,
+                if (!isSelectionMode)
+                  IconButton(
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    icon: const Icon(
+                      Icons.delete_sweep_outlined,
+                      color: Colors.red,
+                      size: 20,
+                    ),
+                    onPressed: onDelete,
+                    tooltip: 'Xóa món này',
                   ),
-                  onPressed: onDelete,
-                  tooltip: 'Xóa món này',
-                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -4009,6 +4176,10 @@ class _CartSummary extends StatelessWidget {
   final VoidCallback? onConfirmOrder;
   final VoidCallback? onCheckout;
   final VoidCallback? onSendOrder;
+  final bool isSelectionMode;
+  final VoidCallback? onDeleteSelected;
+  final VoidCallback? onCancelSelection;
+  final VoidCallback? onDeleteAll;
 
   const _CartSummary({
     required this.subtotal,
@@ -4025,6 +4196,10 @@ class _CartSummary extends StatelessWidget {
     required this.onConfirmOrder,
     required this.onCheckout,
     required this.onSendOrder,
+    this.isSelectionMode = false,
+    this.onDeleteSelected,
+    this.onCancelSelection,
+    this.onDeleteAll,
   });
 
   @override
@@ -4101,6 +4276,44 @@ class _CartSummary extends StatelessWidget {
   }
 
   Widget _buildActions(BuildContext context) {
+    if (isSelectionMode) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _actionButton(
+                  onPressed: onCancelSelection,
+                  icon: Icons.close,
+                  label: 'HỦY',
+                  color: Colors.grey,
+                  compact: true,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _actionButton(
+                  onPressed: onDeleteSelected,
+                  icon: Icons.delete,
+                  label: 'XÓA',
+                  color: Colors.red,
+                  compact: true,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _actionButton(
+            onPressed: onDeleteAll,
+            icon: Icons.delete_forever,
+            label: 'XÓA TẤT CẢ',
+            color: Colors.red.shade900,
+            large: true,
+          ),
+        ],
+      );
+    }
+
     if (isUser) {
       return _actionButton(
         onPressed: onSendOrder,

@@ -57,8 +57,23 @@ class PrintService {
 
     await SunmiPrinter.printRow(
       cols: [
+        _column('Số lượng:', 12, SunmiPrintAlign.LEFT),
+        _column(
+          '${order.items.length} loại món - ${order.totalQuantity} món',
+          18,
+          SunmiPrintAlign.RIGHT,
+        ),
+      ],
+    );
+
+    await SunmiPrinter.printRow(
+      cols: [
         _column('Tạm tính:', 15, SunmiPrintAlign.LEFT),
-        _column(currencyFormat.format(order.subtotal), 15, SunmiPrintAlign.RIGHT),
+        _column(
+          currencyFormat.format(order.subtotal),
+          15,
+          SunmiPrintAlign.RIGHT,
+        ),
       ],
     );
 

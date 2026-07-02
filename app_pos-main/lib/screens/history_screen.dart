@@ -452,6 +452,7 @@ void showOrderDetail(
                   ),
                 ],
               ),
+              ..._paymentDetailRows(order, fmt),
             ],
           ),
         ),
@@ -484,13 +485,62 @@ void showOrderDetail(
   );
 }
 
+List<Widget> _paymentDetailRows(SavedOrder order, NumberFormat fmt) {
+  if (order.status != OrderStatus.completed) return const [];
+
+  if (order.paymentMethod == 'cash') {
+    final receivedAmount = order.cashReceivedAmount ?? order.totalAmount;
+    final changeAmount =
+        order.cashChangeAmount ?? (receivedAmount - order.totalAmount);
+    final returnAmount = order.cashReturnAmount ?? changeAmount;
+
+    return [
+      const Divider(height: 18),
+      _infoRow('Khách đưa', fmt.format(receivedAmount)),
+      _infoRow('Tiền thừa', fmt.format(changeAmount)),
+      _infoRow('Thu ngân', _nonEmptyOrDash(order.cashierName)),
+    ];
+  }
+
+  if (order.paymentMethod == 'qr_code') {
+    final paidAt = order.paidAt ?? order.dateTime;
+
+    return [
+      const Divider(height: 18),
+      _infoRow('Phương thức', _nonEmptyOrDash(order.transferMethod ?? 'VietQR')),
+      _infoRow('Số tiền thanh toán', fmt.format(order.paidAmount ?? order.totalAmount)),
+      _infoRow('Mã giao dịch', _nonEmptyOrDash(order.transactionCode)),
+      _infoRow(
+        'Thời gian thanh toán',
+        DateFormat('dd/MM/yyyy HH:mm').format(paidAt),
+      ),
+      _infoRow('Thu ngân', _nonEmptyOrDash(order.cashierName)),
+    ];
+  }
+
+  return const [];
+}
+
+String _nonEmptyOrDash(String? value) {
+  if (value == null || value.trim().isEmpty) return '-';
+  return value;
+}
+
 Widget _infoRow(String label, String value) => Padding(
   padding: const EdgeInsets.symmetric(vertical: 3),
   child: Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
       Text(label, style: const TextStyle(color: Colors.grey)),
-      Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+      const SizedBox(width: 12),
+      Flexible(
+        child: Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+          textAlign: TextAlign.right,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
     ],
   ),
 );
@@ -939,7 +989,7 @@ class _OrderTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              '${order.items.length} món',
+              '${order.items.length} loại - ${order.totalQuantity} món',
               style: TextStyle(fontSize: 11, color: Colors.grey[400]),
             ),
           ],

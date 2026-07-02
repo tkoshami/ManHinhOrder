@@ -89,6 +89,14 @@ class SavedOrder {
   final double vatAmount;
   final double totalAmount;
   final String paymentMethod;
+  final double? cashReceivedAmount;
+  final double? cashChangeAmount;
+  final double? cashReturnAmount;
+  final String? transferMethod;
+  final double? paidAmount;
+  final String? transactionCode;
+  final DateTime? paidAt;
+  final String? cashierName;
   final String tableOrCustomer;
   final OrderSource source;
   final OrderStatus status;
@@ -104,6 +112,14 @@ class SavedOrder {
     required this.vatAmount,
     required this.totalAmount,
     required this.paymentMethod,
+    this.cashReceivedAmount,
+    this.cashChangeAmount,
+    this.cashReturnAmount,
+    this.transferMethod,
+    this.paidAmount,
+    this.transactionCode,
+    this.paidAt,
+    this.cashierName,
     this.tableOrCustomer = 'Mang đi',
     this.source = OrderSource.posStaff,
     this.status = OrderStatus.pending,
@@ -120,6 +136,14 @@ class SavedOrder {
     double? vatAmount,
     double? totalAmount,
     String? paymentMethod,
+    double? cashReceivedAmount,
+    double? cashChangeAmount,
+    double? cashReturnAmount,
+    String? transferMethod,
+    double? paidAmount,
+    String? transactionCode,
+    DateTime? paidAt,
+    String? cashierName,
     String? tableOrCustomer,
     OrderSource? source,
     OrderStatus? status,
@@ -135,6 +159,14 @@ class SavedOrder {
       vatAmount: vatAmount ?? this.vatAmount,
       totalAmount: totalAmount ?? this.totalAmount,
       paymentMethod: paymentMethod ?? this.paymentMethod,
+      cashReceivedAmount: cashReceivedAmount ?? this.cashReceivedAmount,
+      cashChangeAmount: cashChangeAmount ?? this.cashChangeAmount,
+      cashReturnAmount: cashReturnAmount ?? this.cashReturnAmount,
+      transferMethod: transferMethod ?? this.transferMethod,
+      paidAmount: paidAmount ?? this.paidAmount,
+      transactionCode: transactionCode ?? this.transactionCode,
+      paidAt: paidAt ?? this.paidAt,
+      cashierName: cashierName ?? this.cashierName,
       tableOrCustomer: tableOrCustomer ?? this.tableOrCustomer,
       source: source ?? this.source,
       status: status ?? this.status,
@@ -162,6 +194,15 @@ class SavedOrder {
       'vat_amount': vatAmount,
       'total_amount': totalAmount,
       'payment_method': paymentMethod,
+      if (cashReceivedAmount != null)
+        'cash_received_amount': cashReceivedAmount,
+      if (cashChangeAmount != null) 'cash_change_amount': cashChangeAmount,
+      if (cashReturnAmount != null) 'cash_return_amount': cashReturnAmount,
+      if (transferMethod != null) 'transfer_method': transferMethod,
+      if (paidAmount != null) 'paid_amount': paidAmount,
+      if (transactionCode != null) 'transaction_code': transactionCode,
+      if (paidAt != null) 'paid_at': paidAt!.toIso8601String(),
+      if (cashierName != null) 'cashier_name': cashierName,
       'source': _sourceToDatabase(source),
       'status': _statusToDatabase(status),
     };
@@ -222,6 +263,18 @@ class SavedOrder {
         return OrderStatus.pending;
     }
   }
+
+  static double? _nullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  static DateTime? _nullableDateTime(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
   factory SavedOrder.fromJson(Map<String, dynamic> json) {
     return SavedOrder(
       id: json['id']?.toString(),
@@ -247,6 +300,25 @@ class SavedOrder {
       vatAmount: (json['vat_amount'] as num).toDouble(),
       totalAmount: (json['total_amount'] as num).toDouble(),
       paymentMethod: json['payment_method'],
+      cashReceivedAmount: _nullableDouble(
+        json['cash_received_amount'] ?? json['cashReceivedAmount'],
+      ),
+      cashChangeAmount: _nullableDouble(
+        json['cash_change_amount'] ?? json['cashChangeAmount'],
+      ),
+      cashReturnAmount: _nullableDouble(
+        json['cash_return_amount'] ?? json['cashReturnAmount'],
+      ),
+      transferMethod:
+          json['transfer_method']?.toString() ??
+          json['transferMethod']?.toString(),
+      paidAmount: _nullableDouble(json['paid_amount'] ?? json['paidAmount']),
+      transactionCode:
+          json['transaction_code']?.toString() ??
+          json['transactionCode']?.toString(),
+      paidAt: _nullableDateTime(json['paid_at'] ?? json['paidAt']),
+      cashierName:
+          json['cashier_name']?.toString() ?? json['cashierName']?.toString(),
       tableOrCustomer:
           json['table_or_customer'] ??
           json['table_number'] ??
@@ -260,4 +332,5 @@ class SavedOrder {
   // Backward compatibility getters
   double get total => totalAmount;
   double get vatPercent => vatRate;
+  int get totalQuantity => items.fold(0, (sum, item) => sum + item.quantity);
 }

@@ -4,6 +4,36 @@ import 'package:pos_fnb/models/app_models.dart';
 class SupabaseService {
   static final _supabase = Supabase.instance.client;
 
+  static Map<String, dynamic> _paidOrderMetadataParams(SavedOrder order) => {
+    if (order.cashReceivedAmount != null)
+      'p_cash_received_amount': order.cashReceivedAmount,
+    if (order.cashChangeAmount != null)
+      'p_cash_change_amount': order.cashChangeAmount,
+    if (order.cashReturnAmount != null)
+      'p_cash_return_amount': order.cashReturnAmount,
+    if (order.transferMethod != null) 'p_transfer_method': order.transferMethod,
+    if (order.paidAmount != null) 'p_paid_amount': order.paidAmount,
+    if (order.transactionCode != null) 'p_transaction_code': order.transactionCode,
+    if (order.paidAt != null) 'p_paid_at': order.paidAt!.toIso8601String(),
+    if (order.cashierName != null) 'p_cashier_name': order.cashierName,
+  };
+
+  static Future<dynamic> _rpcWithLegacyRetry(
+    String functionName,
+    Map<String, dynamic> params,
+    Set<String> enhancedKeys,
+  ) async {
+    try {
+      return await _supabase.rpc(functionName, params: params);
+    } catch (e) {
+      if (!enhancedKeys.any(params.containsKey)) rethrow;
+
+      final legacyParams = Map<String, dynamic>.from(params)
+        ..removeWhere((key, _) => enhancedKeys.contains(key));
+      return await _supabase.rpc(functionName, params: legacyParams);
+    }
+  }
+
   // --- CATEGORIES ---
   static Future<List<Category>> getCategories() async {
     try {
@@ -167,10 +197,21 @@ class SupabaseService {
   }
 
   static Future<SavedOrder?> savePaidPosOrder(SavedOrder order) async {
+    const enhancedKeys = {
+      'p_cash_received_amount',
+      'p_cash_change_amount',
+      'p_cash_return_amount',
+      'p_transfer_method',
+      'p_paid_amount',
+      'p_transaction_code',
+      'p_paid_at',
+      'p_cashier_name',
+    };
+
     try {
-      final response = await _supabase.rpc(
+      final response = await _rpcWithLegacyRetry(
         'create_paid_pos_order',
-        params: {
+        {
           'p_items': order.items
               .map(
                 (item) => {
@@ -189,7 +230,9 @@ class SupabaseService {
           'p_vat_amount': order.vatAmount,
           'p_total_amount': order.totalAmount,
           'p_payment_method': order.paymentMethod,
+          ..._paidOrderMetadataParams(order),
         },
+        enhancedKeys,
       );
 
       if (response is List && response.isNotEmpty) {
@@ -253,17 +296,45 @@ class SupabaseService {
 
   static Future<SavedOrder?> completePendingOrder(
     SavedOrder order,
-    String paymentMethod,
-  ) async {
+    String paymentMethod, {
+    double? cashReceivedAmount,
+    double? cashChangeAmount,
+    double? cashReturnAmount,
+    String? transferMethod,
+    double? paidAmount,
+    String? transactionCode,
+    DateTime? paidAt,
+    String? cashierName,
+  }) async {
     if (order.id == null) return null;
+    const enhancedKeys = {
+      'p_cash_received_amount',
+      'p_cash_change_amount',
+      'p_cash_return_amount',
+      'p_transfer_method',
+      'p_paid_amount',
+      'p_transaction_code',
+      'p_paid_at',
+      'p_cashier_name',
+    };
 
     try {
-      final response = await _supabase.rpc(
+      final response = await _rpcWithLegacyRetry(
         'complete_pending_order',
-        params: {
+        {
           'p_order_id': int.tryParse(order.id!),
           'p_payment_method': paymentMethod,
+          if (cashReceivedAmount != null)
+            'p_cash_received_amount': cashReceivedAmount,
+          if (cashChangeAmount != null) 'p_cash_change_amount': cashChangeAmount,
+          if (cashReturnAmount != null) 'p_cash_return_amount': cashReturnAmount,
+          if (transferMethod != null) 'p_transfer_method': transferMethod,
+          if (paidAmount != null) 'p_paid_amount': paidAmount,
+          if (transactionCode != null) 'p_transaction_code': transactionCode,
+          if (paidAt != null) 'p_paid_at': paidAt.toIso8601String(),
+          if (cashierName != null) 'p_cashier_name': cashierName,
         },
+        enhancedKeys,
       );
 
       if (response is List && response.isNotEmpty) {

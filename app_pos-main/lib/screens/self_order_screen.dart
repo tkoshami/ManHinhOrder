@@ -731,7 +731,7 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                       const Icon(Icons.shopping_cart, color: Colors.green),
                       const SizedBox(width: 8),
                       Text(
-                        '${_cart.length} món',
+                        '${_cart.length} loại - ${_cart.fold<int>(0, (p, c) => p + c.quantity)} món',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
