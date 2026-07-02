@@ -92,10 +92,13 @@ class PrintService {
       final changeAmount = cashReceived - order.totalAmount;
 
       await SunmiPrinter.printText(
-        'Tiền khách đưa: ${currencyFormat.format(cashReceived)}',
+        _amountLine('Tiền khách đưa:', currencyFormat.format(cashReceived)),
       );
       await SunmiPrinter.printText(
-        'Tiền thừa trả khách: ${currencyFormat.format(changeAmount)}',
+        _amountLine(
+          'Tiền thừa trả khách:',
+          currencyFormat.format(changeAmount),
+        ),
       );
     }
 
@@ -297,6 +300,13 @@ class PrintService {
   static String _fitRight(String text, int width) {
     final value = text.length > width ? text.substring(text.length - width) : text;
     return value.padLeft(width);
+  }
+
+  static String _amountLine(String label, String amount) {
+    const width = 30;
+    final spaces = width - label.length - amount.length;
+    if (spaces <= 0) return '$label $amount';
+    return '$label${''.padLeft(spaces)}$amount';
   }
 
   static String _getPaymentMethodName(String method) {
