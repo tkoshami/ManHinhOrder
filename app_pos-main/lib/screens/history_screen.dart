@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
+import 'package:pos_fnb/services/print_service.dart';
+import 'package:pos_fnb/widgets/real_time_clock.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -302,6 +304,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         backgroundColor: Colors.orangeAccent,
         actions: [
+          const Center(child: RealTimeClock()),
           IconButton(
             tooltip: 'Tải lại',
             onPressed: _isLoadingHistory ? null : _loadOrderHistory,
@@ -337,15 +340,27 @@ void showOrderDetail(
     builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Icon(Icons.receipt, color: Colors.orange),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              order.id?.toString() ?? 'No ID',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.receipt, color: Colors.orange),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  order.displayOrderCode,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            onPressed: () => Navigator.pop(ctx),
+            icon: const Icon(Icons.close, color: Colors.grey),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -397,12 +412,26 @@ void showOrderDetail(
                               ),
                             ),
                             if (item.discountPercent > 0)
-                              Text(
-                                '-${item.discountPercent.toStringAsFixed(0)}% giảm giá',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.red,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '-${item.discountPercent.toStringAsFixed(0)}% giảm giá',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                  if (item.discountReason.isNotEmpty)
+                                    Text(
+                                      'Lý do: ${item.discountReason}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.redAccent,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                ],
                               ),
                             if (item.note.isNotEmpty)
                               Text(
@@ -453,33 +482,39 @@ void showOrderDetail(
                 ],
               ),
               ..._paymentDetailRows(order, fmt),
+              ..._cancellationDetailRows(order),
             ],
           ),
         ),
       ),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       actions: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+        if (order.status == OrderStatus.completed)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => PrintService.printBill(
+                order,
+                receivedAmount: order.cashReceivedAmount,
               ),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            child: const Text(
-              'Đóng',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+              icon: const Icon(Icons.print, color: Colors.white),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              label: const Text(
+                'IN HÓA ĐƠN',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
-        ),
       ],
     ),
   );
@@ -519,6 +554,24 @@ List<Widget> _paymentDetailRows(SavedOrder order, NumberFormat fmt) {
   }
 
   return const [];
+}
+
+List<Widget> _cancellationDetailRows(SavedOrder order) {
+  if (order.status != OrderStatus.cancelled) return const [];
+
+  return [
+    const Divider(height: 18),
+    _infoRow(
+      'Thời gian hủy',
+      order.cancelledAt != null
+          ? DateFormat('dd/MM/yyyy HH:mm').format(order.cancelledAt!)
+          : (order.paidAt != null
+              ? DateFormat('dd/MM/yyyy HH:mm').format(order.paidAt!)
+              : DateFormat('dd/MM/yyyy HH:mm').format(order.dateTime)),
+    ),
+    _infoRow('Người hủy', _nonEmptyOrDash(order.cancelledBy ?? order.cashierName)),
+    _infoRow('Lý do hủy', _nonEmptyOrDash(order.cancelReason)),
+  ];
 }
 
 String _nonEmptyOrDash(String? value) {
@@ -914,7 +967,7 @@ class _OrderTile extends StatelessWidget {
       title: Row(
         children: [
           Text(
-            order.id?.toString() ?? 'No ID',
+            order.displayOrderCode,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(width: 8),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
+import 'package:pos_fnb/widgets/real_time_clock.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
@@ -191,6 +192,14 @@ class _StatsScreenState extends State<StatsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
+        actions: [
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: RealTimeClock(color: Colors.black),
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

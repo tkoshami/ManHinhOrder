@@ -44,7 +44,7 @@ class PrintService {
     );
     await SunmiPrinter.lineWrap(1);
 
-    await SunmiPrinter.printText('Mã đơn: ${order.id ?? ''}');
+    await SunmiPrinter.printText('Mã đơn: ${order.displayOrderCode}');
     await SunmiPrinter.printText(
       'Ngày: ${DateFormat('dd/MM/yyyy HH:mm').format(order.dateTime)}',
     );
@@ -126,10 +126,10 @@ class PrintService {
     if (order.paymentMethod == 'qr_code') {
       await _printBlankLine();
       await _printVietQR(order);
-    } else if (order.paymentMethod != 'cash' && order.id != null) {
+    } else if (order.paymentMethod != 'cash') {
       await SunmiPrinter.lineWrap(1);
       await SunmiPrinter.printQRCode(
-        order.id!,
+        order.displayOrderCode,
         style: SunmiQrcodeStyle(align: SunmiPrintAlign.CENTER),
       );
     }
@@ -168,7 +168,7 @@ class PrintService {
         accountNo: accountNo,
         accountName: accountName,
         amount: order.totalAmount.toInt(),
-        description: order.id ?? '',
+        description: order.displayOrderCode,
       );
       
       final qrCode = qrResponse['qrCode'];
@@ -193,7 +193,7 @@ class PrintService {
         style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, fontSize: 24),
       );
       await SunmiPrinter.printText(
-        'Nội dung: ${order.id ?? ''}',
+        'Nội dung: ${order.displayOrderCode}',
         style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, fontSize: 22),
       );
 
@@ -270,6 +270,12 @@ class PrintService {
           'Giảm giá: ${item.discountPercent.toStringAsFixed(0)}%',
           style: SunmiTextStyle(fontSize: 20),
         );
+        if (item.discountReason.isNotEmpty) {
+          await SunmiPrinter.printText(
+            'Lý do: ${item.discountReason}',
+            style: SunmiTextStyle(fontSize: 18, italic: true),
+          );
+        }
       }
     }
 

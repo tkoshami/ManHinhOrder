@@ -30,7 +30,7 @@ class SelfOrderPaymentScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Mã đơn: ${order.id}',
+              'Mã đơn: ${order.displayOrderCode}',
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 24),
@@ -63,7 +63,7 @@ class SelfOrderPaymentScreen extends StatelessWidget {
             const SizedBox(height: 16),
             VietQRDisplay(
               amount: order.totalAmount.toInt(),
-              description: 'ORDER${order.id}',
+              description: order.displayOrderCode,
             ),
             const SizedBox(height: 32),
             const Text(

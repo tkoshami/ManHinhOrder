@@ -46,3 +46,4 @@ app.*.map.json
 
 # App Secrets
 lib/config/secrets.dart
+.vercel

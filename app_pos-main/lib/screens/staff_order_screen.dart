@@ -10,6 +10,7 @@ import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:pos_fnb/widgets/cart_item_tile.dart';
 import 'package:pos_fnb/widgets/product_card.dart';
 import 'package:pos_fnb/widgets/product_image.dart';
+import 'package:pos_fnb/widgets/real_time_clock.dart';
 import 'package:pos_fnb/widgets/vietqr_display.dart';
 
 class StaffOrderScreen extends StatefulWidget {
@@ -381,13 +382,6 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() => _cart.removeAt(index));
-              },
-              child: const Text('XÓA MÓN', style: TextStyle(color: Colors.red)),
-            ),
-            TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('HỦY'),
             ),
@@ -514,6 +508,7 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
       vatAmount: 0,
       totalAmount: subtotal,
       paymentMethod: paymentMethod ?? 'cash',
+      cashierName: widget.user.name,
       source: OrderSource.posStaff,
       status: paymentMethod == null
           ? OrderStatus.pending
@@ -556,6 +551,12 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
         backgroundColor: Colors.blueAccent,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: RealTimeClock(),
+            ),
+          ),
           TextButton.icon(
             onPressed: () => Navigator.push(
               context,

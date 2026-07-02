@@ -67,12 +67,14 @@ class CartItem {
   int quantity;
   double discountPercent;
   String note;
+  String discountReason;
 
   CartItem({
     required this.product,
     this.quantity = 1,
     this.discountPercent = 0,
     this.note = '',
+    this.discountReason = '',
   });
 
   double get total => (product.price * quantity) * (1 - discountPercent / 100);
@@ -80,6 +82,7 @@ class CartItem {
 
 class SavedOrder {
   final String? id;
+  final String? orderNumber;
   final int? shiftId;
   final List<CartItem> items;
   final DateTime dateTime;
@@ -97,12 +100,16 @@ class SavedOrder {
   final String? transactionCode;
   final DateTime? paidAt;
   final String? cashierName;
+  final DateTime? cancelledAt;
+  final String? cancelledBy;
+  final String? cancelReason;
   final String tableOrCustomer;
   final OrderSource source;
   final OrderStatus status;
 
   SavedOrder({
     this.id,
+    this.orderNumber,
     this.shiftId,
     required this.items,
     required this.dateTime,
@@ -120,6 +127,9 @@ class SavedOrder {
     this.transactionCode,
     this.paidAt,
     this.cashierName,
+    this.cancelledAt,
+    this.cancelledBy,
+    this.cancelReason,
     this.tableOrCustomer = 'Mang đi',
     this.source = OrderSource.posStaff,
     this.status = OrderStatus.pending,
@@ -127,6 +137,7 @@ class SavedOrder {
 
   SavedOrder copyWith({
     String? id,
+    String? orderNumber,
     int? shiftId,
     List<CartItem>? items,
     DateTime? dateTime,
@@ -144,12 +155,16 @@ class SavedOrder {
     String? transactionCode,
     DateTime? paidAt,
     String? cashierName,
+    DateTime? cancelledAt,
+    String? cancelledBy,
+    String? cancelReason,
     String? tableOrCustomer,
     OrderSource? source,
     OrderStatus? status,
   }) {
     return SavedOrder(
       id: id ?? this.id,
+      orderNumber: orderNumber ?? this.orderNumber,
       shiftId: shiftId ?? this.shiftId,
       items: items ?? this.items,
       dateTime: dateTime ?? this.dateTime,
@@ -167,6 +182,9 @@ class SavedOrder {
       transactionCode: transactionCode ?? this.transactionCode,
       paidAt: paidAt ?? this.paidAt,
       cashierName: cashierName ?? this.cashierName,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancelledBy: cancelledBy ?? this.cancelledBy,
+      cancelReason: cancelReason ?? this.cancelReason,
       tableOrCustomer: tableOrCustomer ?? this.tableOrCustomer,
       source: source ?? this.source,
       status: status ?? this.status,
@@ -176,6 +194,7 @@ class SavedOrder {
   Map<String, dynamic> toJson() {
     return {
       if (shiftId != null) 'shift_id': shiftId,
+      if (orderNumber != null) 'order_number': orderNumber,
       'items': items
           .map(
             (item) => {
@@ -185,6 +204,7 @@ class SavedOrder {
               'quantity': item.quantity,
               'discount_percent': item.discountPercent,
               'note': item.note,
+              'discount_reason': item.discountReason,
             },
           )
           .toList(),
@@ -201,8 +221,11 @@ class SavedOrder {
       if (transferMethod != null) 'transfer_method': transferMethod,
       if (paidAmount != null) 'paid_amount': paidAmount,
       if (transactionCode != null) 'transaction_code': transactionCode,
-      if (paidAt != null) 'paid_at': paidAt!.toIso8601String(),
+      if (paidAt != null) 'paid_at': paidAt!.toUtc().toIso8601String(),
       if (cashierName != null) 'cashier_name': cashierName,
+      if (cancelledAt != null) 'cancelled_at': cancelledAt!.toUtc().toIso8601String(),
+      if (cancelledBy != null) 'cancelled_by': cancelledBy,
+      if (cancelReason != null) 'cancel_reason': cancelReason,
       'source': _sourceToDatabase(source),
       'status': _statusToDatabase(status),
     };
@@ -272,12 +295,15 @@ class SavedOrder {
 
   static DateTime? _nullableDateTime(dynamic value) {
     if (value == null) return null;
-    return DateTime.tryParse(value.toString());
+    final dt = DateTime.tryParse(value.toString());
+    return dt?.toLocal();
   }
 
   factory SavedOrder.fromJson(Map<String, dynamic> json) {
     return SavedOrder(
       id: json['id']?.toString(),
+      orderNumber:
+          json['order_number']?.toString() ?? json['orderNumber']?.toString(),
       shiftId: json['shift_id'],
       items: (json['items'] as List)
           .map(
@@ -290,10 +316,13 @@ class SavedOrder {
               quantity: i['quantity'],
               discountPercent: (i['discount_percent'] as num).toDouble(),
               note: i['note'] ?? '',
+              discountReason: i['discount_reason'] ?? '',
             ),
           )
           .toList(),
-      dateTime: DateTime.parse(json['order_date'] ?? json['created_at']),
+      dateTime: DateTime.parse(
+        json['order_date'] ?? json['created_at'],
+      ).toLocal(),
       subtotal: (json['subtotal_amount'] as num).toDouble(),
       discountAmount: (json['discount_amount'] as num).toDouble(),
       vatRate: (json['vat_rate'] as num).toDouble(),
@@ -319,6 +348,11 @@ class SavedOrder {
       paidAt: _nullableDateTime(json['paid_at'] ?? json['paidAt']),
       cashierName:
           json['cashier_name']?.toString() ?? json['cashierName']?.toString(),
+      cancelledAt: _nullableDateTime(json['cancelled_at'] ?? json['cancelledAt']),
+      cancelledBy:
+          json['cancelled_by']?.toString() ?? json['cancelledBy']?.toString(),
+      cancelReason:
+          json['cancel_reason']?.toString() ?? json['cancelReason']?.toString(),
       tableOrCustomer:
           json['table_or_customer'] ??
           json['table_number'] ??
@@ -333,4 +367,6 @@ class SavedOrder {
   double get total => totalAmount;
   double get vatPercent => vatRate;
   int get totalQuantity => items.fold(0, (sum, item) => sum + item.quantity);
+  String get displayOrderCode =>
+      orderNumber ?? (id == null ? '---' : 'ZONZON-$id');
 }

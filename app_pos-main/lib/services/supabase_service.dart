@@ -14,7 +14,7 @@ class SupabaseService {
     if (order.transferMethod != null) 'p_transfer_method': order.transferMethod,
     if (order.paidAmount != null) 'p_paid_amount': order.paidAmount,
     if (order.transactionCode != null) 'p_transaction_code': order.transactionCode,
-    if (order.paidAt != null) 'p_paid_at': order.paidAt!.toIso8601String(),
+    if (order.paidAt != null) 'p_paid_at': order.paidAt!.toUtc().toIso8601String(),
     if (order.cashierName != null) 'p_cashier_name': order.cashierName,
   };
 
@@ -331,7 +331,7 @@ class SupabaseService {
           if (transferMethod != null) 'p_transfer_method': transferMethod,
           if (paidAmount != null) 'p_paid_amount': paidAmount,
           if (transactionCode != null) 'p_transaction_code': transactionCode,
-          if (paidAt != null) 'p_paid_at': paidAt.toIso8601String(),
+          if (paidAt != null) 'p_paid_at': paidAt.toUtc().toIso8601String(),
           if (cashierName != null) 'p_cashier_name': cashierName,
         },
         enhancedKeys,
@@ -350,13 +350,21 @@ class SupabaseService {
     }
   }
 
-  static Future<SavedOrder?> cancelPendingOrder(SavedOrder order) async {
+  static Future<SavedOrder?> cancelPendingOrder(
+    SavedOrder order, {
+    String? cancelledBy,
+    String? reason,
+  }) async {
     if (order.id == null) return null;
 
     try {
       final response = await _supabase.rpc(
         'cancel_pending_order',
-        params: {'p_order_id': int.tryParse(order.id!)},
+        params: {
+          'p_order_id': int.tryParse(order.id!),
+          'p_cancelled_by': cancelledBy,
+          'p_cancel_reason': reason,
+        },
       );
       if (response is List && response.isNotEmpty) {
         return SavedOrder.fromJson(Map<String, dynamic>.from(response.first));

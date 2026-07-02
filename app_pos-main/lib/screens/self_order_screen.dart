@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/constants.dart';
 import 'package:pos_fnb/models/app_models.dart';
+import 'package:pos_fnb/screens/self_order_confirm_screen.dart';
 import 'package:pos_fnb/screens/self_order_payment_screen.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:pos_fnb/widgets/product_image.dart';
+import 'package:pos_fnb/widgets/real_time_clock.dart';
 
 class SelfOrderScreen extends StatefulWidget {
   const SelfOrderScreen({super.key});
@@ -297,45 +299,35 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
   double get _subtotal => _cart.fold(0, (sum, item) => sum + item.total);
   double get _total => _subtotal * 1.08; // 8% VAT default
 
-  void _placeOrder() async {
+  void _goToConfirmation() {
     if (_cart.isEmpty) return;
 
-    final order = SavedOrder(
-      items: List.from(_cart),
-      dateTime: DateTime.now(),
-      subtotal: _subtotal,
-      discountAmount: 0,
-      vatRate: 8,
-      vatAmount: _subtotal * 0.08,
-      totalAmount: _total,
-      paymentMethod: 'qr_code',
-      tableOrCustomer: 'Khách QR (Mang đi)',
-      source: OrderSource.qrCode,
-      status: OrderStatus.pending,
-    );
-
-    final savedOrder = await SupabaseService.saveSelfOrder(order);
-    if (savedOrder != null && mounted) {
-      setState(() {
-        _cart.clear();
-        _selectedCategory = _categories.first;
-        _searchController.clear();
-        _filteredProducts = List.from(_allProducts);
-      });
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SelfOrderPaymentScreen(order: savedOrder),
+    Navigator.push<SavedOrder?>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SelfOrderConfirmScreen(
+          cartItems: _cart,
+          subtotal: _subtotal,
+          total: _total,
         ),
-      );
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Có lỗi xảy ra khi đặt món. Vui lòng thử lại.'),
-        ),
-      );
-    }
+      ),
+    ).then((savedOrder) {
+      if (savedOrder != null && mounted) {
+        setState(() {
+          _cart.clear();
+          _selectedCategory = _categories.first;
+          _searchController.clear();
+          _filteredProducts = List.from(_allProducts);
+        });
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SelfOrderPaymentScreen(order: savedOrder),
+          ),
+        );
+      }
+    });
   }
 
   @override
@@ -350,6 +342,7 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
         centerTitle: true,
         automaticallyImplyLeading: false, // Bỏ nút back
         actions: [
+          const Center(child: RealTimeClock()),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadData,
@@ -759,13 +752,13 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _placeOrder,
+                  onPressed: _goToConfirmation,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
                   ),
                   child: const Text(
-                    'ĐẶT MÓN & THANH TOÁN',
+                    'XÁC NHẬN',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),

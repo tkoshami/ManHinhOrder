@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/feedback_data.dart';
 import 'package:pos_fnb/models/feedback_model.dart';
 import 'package:pos_fnb/models/app_models.dart';
+import 'package:pos_fnb/widgets/real_time_clock.dart';
 
 class FeedbackScreen extends StatefulWidget {
   final UserAccount? currentUser; // null nếu là khách hàng (user role)
@@ -77,6 +78,14 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       appBar: AppBar(
         title: const Text('Danh sách phản hồi'),
         backgroundColor: Colors.orangeAccent,
+        actions: const [
+          Center(
+            child: Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: RealTimeClock(),
+            ),
+          ),
+        ],
       ),
       body: globalFeedbacks.isEmpty
           ? const Center(child: Text('Chưa có phản hồi nào.'))
@@ -118,7 +127,17 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
   Widget _buildFeedbackForm() {
     return Scaffold(
-      appBar: AppBar(title: const Text('Gửi phản hồi cho quán')),
+      appBar: AppBar(
+        title: const Text('Gửi phản hồi cho quán'),
+        actions: const [
+          Center(
+            child: Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: RealTimeClock(color: Colors.black),
+            ),
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
