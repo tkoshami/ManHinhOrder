@@ -56,6 +56,7 @@ class _OrderScreenState extends State<OrderScreen> {
   StreamSubscription<List<SavedOrder>>? _orderSubscription;
   bool _hasSyncedInitialOrderStream = false;
   final Set<String> _notifiedQrOrderIds = <String>{};
+  final Set<String> _closedPendingOrderIds = <String>{};
 
   bool _isHandheldPos(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
@@ -120,7 +121,7 @@ class _OrderScreenState extends State<OrderScreen> {
     if (!mounted) return;
 
     _syncState(() {
-      _mergePendingOrders(orders);
+      _syncPendingOrdersFromDatabase(orders);
     });
   }
 
@@ -129,7 +130,7 @@ class _OrderScreenState extends State<OrderScreen> {
       if (!mounted) return;
 
       _syncState(() {
-        _mergePendingOrders(
+        _syncPendingOrdersFromDatabase(
           orders,
           notifyQrOrders: _hasSyncedInitialOrderStream,
         );
@@ -138,11 +139,43 @@ class _OrderScreenState extends State<OrderScreen> {
     });
   }
 
+  void _syncPendingOrdersFromDatabase(
+    List<SavedOrder> orders, {
+    bool notifyQrOrders = false,
+  }) {
+    final incomingIds = orders
+        .map((order) => order.id)
+        .whereType<String>()
+        .toSet();
+
+    globalPendingOrders.removeWhere((order) {
+      final id = order.id;
+      if (id == null) return order.status != OrderStatus.pending;
+      final parsedId = int.tryParse(id);
+      final isLocalOnly = parsedId == null || parsedId > 1000000000000;
+
+      if (_closedPendingOrderIds.contains(id) ||
+          order.status != OrderStatus.pending) {
+        return true;
+      }
+
+      return !isLocalOnly && !incomingIds.contains(id);
+    });
+
+    _mergePendingOrders(orders, notifyQrOrders: notifyQrOrders);
+  }
+
   void _mergePendingOrders(
     List<SavedOrder> orders, {
     bool notifyQrOrders = false,
   }) {
     for (final newOrder in orders) {
+      final orderId = newOrder.id;
+      if (newOrder.status != OrderStatus.pending ||
+          (orderId != null && _closedPendingOrderIds.contains(orderId))) {
+        continue;
+      }
+
       final existingIndex = globalPendingOrders.indexWhere(
         (order) => order.id == newOrder.id,
       );
@@ -154,7 +187,6 @@ class _OrderScreenState extends State<OrderScreen> {
 
       globalPendingOrders.add(newOrder);
 
-      final orderId = newOrder.id;
       final shouldNotify =
           notifyQrOrders &&
           orderId != null &&
@@ -1165,22 +1197,64 @@ class _OrderScreenState extends State<OrderScreen> {
     );
 
     _syncState(() {
+      if (order.id != null) _closedPendingOrderIds.add(order.id!);
+      if (completedOrder.id != null) {
+        _closedPendingOrderIds.add(completedOrder.id!);
+      }
       globalPendingOrders.removeWhere((o) => o.id == order.id);
       globalCompletedOrders.insert(0, completedOrder);
     });
 
-    // In hóa đơn tự động khi hoàn tất thanh toán
-    _printBill(
-      completedOrder,
-      receivedAmount: receivedAmount,
-      snackMessage: 'Đang in bill đơn ${completedOrder.displayOrderCode}...',
-    );
+    final bool isSelfOrder = completedOrder.source == OrderSource.qrCode ||
+        completedOrder.source == OrderSource.kiosk;
 
-    _showReceiptDialogForOrder(
-      completedOrder,
-      method,
-      receivedAmount: receivedAmount,
-    );
+    if (isSelfOrder) {
+      // Đơn tự đặt: Không in lại, không hiện popup, chỉ hiện snackbar thông báo hoàn tất
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đơn ${completedOrder.displayOrderCode} hoàn tất',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(10),
+        ),
+      );
+    } else {
+      // Đơn tại quầy: In bill và hiện popup thành công
+      _printBill(
+        completedOrder,
+        receivedAmount: receivedAmount,
+        snackMessage: 'Đang in bill đơn ${completedOrder.displayOrderCode}...',
+      );
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 28),
+              SizedBox(width: 12),
+              Text('Thành công'),
+            ],
+          ),
+          content: Text(
+            'Đơn hàng ${completedOrder.displayOrderCode} đã được hoàn tất.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ĐÓNG'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _cancelOrder(SavedOrder order) async {
@@ -1269,6 +1343,10 @@ class _OrderScreenState extends State<OrderScreen> {
     }
 
     _syncState(() {
+      if (order.id != null) _closedPendingOrderIds.add(order.id!);
+      if (cancelledOrder.id != null) {
+        _closedPendingOrderIds.add(cancelledOrder.id!);
+      }
       globalPendingOrders.removeWhere((o) => o.id == order.id);
       globalCompletedOrders.removeWhere((o) => o.id == cancelledOrder.id);
       globalCompletedOrders.insert(0, cancelledOrder);
@@ -3028,107 +3106,119 @@ class _OrderScreenState extends State<OrderScreen> {
                   horizontal: 8,
                   vertical: 8,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        if (order.source == OrderSource.qrCode ||
-                            order.source == OrderSource.kiosk) {
-                          // Với đơn tự đặt, hoàn tất luôn không cần chọn PTTT
-                          _finishPayment(order, 'Chuyển khoản');
-                        } else {
-                          _completeOrder(order);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: (order.source == OrderSource.qrCode ||
-                                order.source == OrderSource.kiosk)
-                            ? Colors.blue
-                            : Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                child: (order.source == OrderSource.qrCode ||
+                        order.source == OrderSource.kiosk)
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // _finishPayment đã có sẵn Navigator.pop(context) để đóng popup
+                            _finishPayment(order, 'Chuyển khoản');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.done_all, size: 20),
+                          label: const Text(
+                            'HOÀN TẤT',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _completeOrder(order);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.check_circle,
+                              size: 18,
+                            ),
+                            label: const Text(
+                              'Thanh toán',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _openPendingOrder(order);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.edit,
+                              size: 18,
+                            ),
+                            label: const Text(
+                              'Chỉnh sửa',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () => _cancelOrder(order),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.cancel,
+                              size: 18,
+                            ),
+                            label: const Text(
+                              'Hủy đơn',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      icon: Icon(
-                        (order.source == OrderSource.qrCode ||
-                                order.source == OrderSource.kiosk)
-                            ? Icons.done_all
-                            : Icons.check_circle,
-                        size: 18,
-                      ),
-                      label: Text(
-                        (order.source == OrderSource.qrCode ||
-                                order.source == OrderSource.kiosk)
-                            ? 'HOÀN TẤT'
-                            : 'Thanh toán',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _openPendingOrder(order);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      icon: const Icon(
-                        Icons.edit,
-                        size: 18,
-                      ),
-                      label: const Text(
-                        'Chỉnh sửa',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => _cancelOrder(order),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      icon: const Icon(
-                        Icons.cancel,
-                        size: 18,
-                      ),
-                      label: const Text(
-                        'Hủy đơn',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
