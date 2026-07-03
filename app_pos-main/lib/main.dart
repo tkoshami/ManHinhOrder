@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pos_fnb/screens/login_screen.dart';
 import 'package:pos_fnb/screens/self_order_screen.dart';
+import 'package:pos_fnb/widgets/internet_status_banner.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MarPOS',
+      builder: (context, child) {
+        return InternetStatusBanner(child: child ?? const SizedBox.shrink());
+      },
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         useMaterial3: true,

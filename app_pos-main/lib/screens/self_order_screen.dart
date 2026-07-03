@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/constants.dart';
@@ -24,7 +21,6 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
   List<CartItem> _cart = [];
   bool _isLoading = true;
   bool _isOffline = false;
-  Timer? _connectivityTimer;
   String _selectedCategory = appCategories[0];
   List<String> _categories = [appCategories[0]];
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
@@ -35,30 +31,12 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
   void initState() {
     super.initState();
     _loadData();
-    _checkConnection();
-    _connectivityTimer = Timer.periodic(const Duration(seconds: 5), (_) => _checkConnection());
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _connectivityTimer?.cancel();
     super.dispose();
-  }
-
-  Future<void> _checkConnection() async {
-    if (kIsWeb) return;
-    try {
-      final result = await InternetAddress.lookup('google.com').timeout(const Duration(seconds: 3));
-      final offline = result.isEmpty || result[0].rawAddress.isEmpty;
-      if (mounted && _isOffline != offline) {
-        setState(() => _isOffline = offline);
-      }
-    } catch (_) {
-      if (mounted && !_isOffline) {
-        setState(() => _isOffline = true);
-      }
-    }
   }
 
   Future<void> _loadData() async {
