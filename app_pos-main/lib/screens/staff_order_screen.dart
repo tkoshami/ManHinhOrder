@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -26,6 +29,8 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   bool _isLoadingProducts = true;
   List<Product> _filteredProducts = [];
   List<CartItem> _cart = [];
+  bool _isOffline = false;
+  Timer? _connectivityTimer;
 
   String _selectedCategory = appCategories[0];
   List<String> _categories = [appCategories[0]];
@@ -36,6 +41,30 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
   void initState() {
     super.initState();
     _loadProducts();
+    _checkConnection();
+    _connectivityTimer = Timer.periodic(const Duration(seconds: 5), (_) => _checkConnection());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _connectivityTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkConnection() async {
+    if (kIsWeb) return;
+    try {
+      final result = await InternetAddress.lookup('google.com').timeout(const Duration(seconds: 3));
+      final offline = result.isEmpty || result[0].rawAddress.isEmpty;
+      if (mounted && _isOffline != offline) {
+        setState(() => _isOffline = offline);
+      }
+    } catch (_) {
+      if (mounted && !_isOffline) {
+        setState(() => _isOffline = true);
+      }
+    }
   }
 
   Future<void> _loadProducts() async {
@@ -583,27 +612,51 @@ class _StaffOrderScreenState extends State<StaffOrderScreen> {
           ),
         ],
       ),
-      body: isCompact
-          ? Column(
-              children: [
-                Expanded(child: _buildProductPanel()),
-                Container(
-                  height: MediaQuery.sizeOf(context).height * 0.42,
-                  color: Colors.white,
-                  child: _buildCartPanel(),
-                ),
-              ],
-            )
-          : Row(
-              children: [
-                Expanded(flex: 3, child: _buildProductPanel()),
-                Container(
-                  width: 350,
-                  color: Colors.white,
-                  child: _buildCartPanel(),
-                ),
-              ],
+      body: Column(
+        children: [
+          if (_isOffline)
+            Container(
+              width: double.infinity,
+              color: Colors.red,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: const Row(
+                children: [
+                  Icon(Icons.wifi_off, color: Colors.white, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Mất kết nối Internet. Vui lòng kiểm tra lại kết nối.',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          Expanded(
+            child: isCompact
+                ? Column(
+                    children: [
+                      Expanded(child: _buildProductPanel()),
+                      Container(
+                        height: MediaQuery.sizeOf(context).height * 0.42,
+                        color: Colors.white,
+                        child: _buildCartPanel(),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(flex: 3, child: _buildProductPanel()),
+                      Container(
+                        width: 350,
+                        color: Colors.white,
+                        child: _buildCartPanel(),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
