@@ -2730,22 +2730,28 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   void _showManualDialog() {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
-          children: const [
-            Icon(Icons.help_outline, color: Colors.orange, size: 28),
-            SizedBox(width: 12),
-            Text(
-              'HƯỚNG DẪN SỬ DỤNG',
-              style: TextStyle(fontWeight: FontWeight.bold),
+          children: [
+            const Icon(Icons.help_outline, color: Colors.orange, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'HƯỚNG DẪN SỬ DỤNG',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: isMobile ? 18 : 22,
+                ),
+              ),
             ),
           ],
         ),
         content: SizedBox(
-          width: 600,
+          width: _responsiveDialogWidth(context, 600),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -3028,10 +3034,19 @@ class _OrderScreenState extends State<OrderScreen> {
                     ElevatedButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
-                        _completeOrder(order);
+                        if (order.source == OrderSource.qrCode ||
+                            order.source == OrderSource.kiosk) {
+                          // Với đơn tự đặt, hoàn tất luôn không cần chọn PTTT
+                          _finishPayment(order, 'Chuyển khoản');
+                        } else {
+                          _completeOrder(order);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: (order.source == OrderSource.qrCode ||
+                                order.source == OrderSource.kiosk)
+                            ? Colors.blue
+                            : Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -3041,13 +3056,19 @@ class _OrderScreenState extends State<OrderScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      icon: const Icon(
-                        Icons.check_circle,
+                      icon: Icon(
+                        (order.source == OrderSource.qrCode ||
+                                order.source == OrderSource.kiosk)
+                            ? Icons.done_all
+                            : Icons.check_circle,
                         size: 18,
                       ),
-                      label: const Text(
-                        'Thanh toán',
-                        style: TextStyle(
+                      label: Text(
+                        (order.source == OrderSource.qrCode ||
+                                order.source == OrderSource.kiosk)
+                            ? 'HOÀN TẤT'
+                            : 'Thanh toán',
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
