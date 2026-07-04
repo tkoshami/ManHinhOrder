@@ -24,7 +24,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final List<Widget> screens = [OrderScreen(user: widget.currentUser)];
     final List<BottomNavigationBarItem> navItems = [
       BottomNavigationBarItem(
-        icon: const Icon(Icons.restaurant_menu), 
+        icon: const Icon(Icons.restaurant_menu),
         label: isUser ? 'Gọi món' : 'Tạo đơn',
       ),
     ];

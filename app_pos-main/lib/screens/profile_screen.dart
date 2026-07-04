@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pos_fnb/models/app_models.dart';
+import 'package:pos_fnb/screens/admin_dashboard_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final UserAccount user;
@@ -28,18 +29,18 @@ class ProfileScreen extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 65,
                   backgroundColor: Colors.orange.shade50,
-                  backgroundImage: user.avatarUrl != null 
-                      ? NetworkImage(user.avatarUrl!) 
+                  backgroundImage: user.avatarUrl != null
+                      ? NetworkImage(user.avatarUrl!)
                       : null,
                   child: user.avatarUrl == null
                       ? Text(
-                          user.name.substring(0, 1).toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade800,
-                          ),
-                        )
+                    user.name.substring(0, 1).toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade800,
+                    ),
+                  )
                       : null,
                 ),
               ),
@@ -83,6 +84,33 @@ class ProfileScreen extends StatelessWidget {
               label: 'Quyền hạn',
               value: _getRoleName(user.role),
             ),
+            if (user.role == UserRole.admin) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AdminDashboardScreen(user: user),
+                      ),
+                    ),
+                    icon: const Icon(Icons.admin_panel_settings),
+                    label: const Text('Quản trị hệ thống'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 40),
           ],
         ),

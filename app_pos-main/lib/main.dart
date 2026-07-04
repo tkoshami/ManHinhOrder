@@ -8,7 +8,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
     url: 'https://ictrofvccqswlgeeoqnw.supabase.co',
-    publishableKey: 'sb_publishable_haRSLT58916WxVI8DF3WXA_iwtMkezF',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljdHJvZnZjY3Fzd2xnZWVvcW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQ2NzMsImV4cCI6MjA5NzA5MDY3M30.mjTsnWNKkZSfdeb1yI1gxQSleef35Ge2_hsqBY5iMys',
   );
   runApp(const MyApp());
 }
@@ -26,6 +26,7 @@ String _initialRouteForCurrentUrl() {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -53,7 +54,8 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.orange, width: 2.2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
         textTheme: const TextTheme(
           bodyLarge: TextStyle(color: Colors.black),
@@ -62,7 +64,6 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: _initialRouteForCurrentUrl(),
       onGenerateRoute: (settings) {
-        // Hỗ trợ cả đường dẫn /self-order và /zonzon theo yêu cầu
         if (settings.name == '/self-order' || settings.name == '/zonzon') {
           return MaterialPageRoute(builder: (_) => const SelfOrderScreen());
         }

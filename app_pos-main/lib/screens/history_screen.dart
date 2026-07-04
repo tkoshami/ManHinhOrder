@@ -3,8 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:pos_fnb/data/order_data.dart';
 import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
-import 'package:pos_fnb/services/print_service.dart';
-import 'package:pos_fnb/widgets/real_time_clock.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -26,10 +24,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     // Filter by Date
     if (_startDate != null) {
       final start =
-          DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
+      DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
       orders = orders
           .where((o) =>
-              o.dateTime.isAfter(start.subtract(const Duration(seconds: 1))))
+          o.dateTime.isAfter(start.subtract(const Duration(seconds: 1))))
           .toList();
     }
     if (_endDate != null) {
@@ -135,7 +133,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   onTap: () => _pickDate(true),
                   child: Container(
                     padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade300),
                       borderRadius: BorderRadius.circular(8),
@@ -173,7 +171,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   onTap: () => _pickDate(false),
                   child: Container(
                     padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade300),
                       borderRadius: BorderRadius.circular(8),
@@ -189,7 +187,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               color:
-                                  _endDate == null ? Colors.grey : Colors.black87,
+                              _endDate == null ? Colors.grey : Colors.black87,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -304,7 +302,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         backgroundColor: Colors.orangeAccent,
         actions: [
-          const Center(child: RealTimeClock()),
           IconButton(
             tooltip: 'Tải lại',
             onPressed: _isLoadingHistory ? null : _loadOrderHistory,
@@ -319,10 +316,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: _isLoadingHistory && globalCompletedOrders.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : _OrderHistoryTab(
-                    orders: _allOrders,
-                    currencyFormat: currencyFormat,
-                    onRefresh: () => setState(() {}),
-                  ),
+              orders: _allOrders,
+              currencyFormat: currencyFormat,
+              onRefresh: () => setState(() {}),
+            ),
           ),
         ],
       ),
@@ -331,36 +328,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
 }
 
 void showOrderDetail(
-  BuildContext context,
-  SavedOrder order,
-  NumberFormat fmt,
-) {
+    BuildContext context,
+    SavedOrder order,
+    NumberFormat fmt,
+    ) {
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.receipt, color: Colors.orange),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  order.displayOrderCode,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          IconButton(
-            onPressed: () => Navigator.pop(ctx),
-            icon: const Icon(Icons.close, color: Colors.grey),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
+          const Icon(Icons.receipt, color: Colors.orange),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              order.id?.toString() ?? 'No ID',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -380,22 +365,22 @@ void showOrderDetail(
                 order.status == OrderStatus.completed
                     ? 'Đã thanh toán'
                     : (order.status == OrderStatus.cancelled
-                          ? 'Đã hủy'
-                          : 'Đang chờ'),
+                    ? 'Đã hủy'
+                    : 'Đang chờ'),
               ),
               _infoRow(
                 'Thanh toán',
                 order.status == OrderStatus.cancelled
                     ? 'Chưa thanh toán'
                     : (order.paymentMethod == 'cash'
-                          ? 'Tiền mặt'
-                          : (order.paymentMethod == 'qr_code'
-                                ? 'Chuyển khoản'
-                                : 'Thẻ')),
+                    ? 'Tiền mặt'
+                    : (order.paymentMethod == 'qr_code'
+                    ? 'Chuyển khoản'
+                    : 'Thẻ')),
               ),
               const Divider(),
               ...order.items.map(
-                (item) => Padding(
+                    (item) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 3),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -412,26 +397,12 @@ void showOrderDetail(
                               ),
                             ),
                             if (item.discountPercent > 0)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '-${item.discountPercent.toStringAsFixed(0)}% giảm giá',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                  if (item.discountReason.isNotEmpty)
-                                    Text(
-                                      'Lý do: ${item.discountReason}',
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.redAccent,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                ],
+                              Text(
+                                '-${item.discountPercent.toStringAsFixed(0)}% giảm giá',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.red,
+                                ),
                               ),
                             if (item.note.isNotEmpty)
                               Text(
@@ -482,39 +453,33 @@ void showOrderDetail(
                 ],
               ),
               ..._paymentDetailRows(order, fmt),
-              ..._cancellationDetailRows(order),
             ],
           ),
         ),
       ),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       actions: [
-        if (order.status == OrderStatus.completed)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => PrintService.printBill(
-                order,
-                receivedAmount: order.cashReceivedAmount,
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-              icon: const Icon(Icons.print, color: Colors.white),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              label: const Text(
-                'IN HÓA ĐƠN',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            child: const Text(
+              'Đóng',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
+        ),
       ],
     ),
   );
@@ -554,24 +519,6 @@ List<Widget> _paymentDetailRows(SavedOrder order, NumberFormat fmt) {
   }
 
   return const [];
-}
-
-List<Widget> _cancellationDetailRows(SavedOrder order) {
-  if (order.status != OrderStatus.cancelled) return const [];
-
-  return [
-    const Divider(height: 18),
-    _infoRow(
-      'Thời gian hủy',
-      order.cancelledAt != null
-          ? DateFormat('dd/MM/yyyy HH:mm').format(order.cancelledAt!)
-          : (order.paidAt != null
-              ? DateFormat('dd/MM/yyyy HH:mm').format(order.paidAt!)
-              : DateFormat('dd/MM/yyyy HH:mm').format(order.dateTime)),
-    ),
-    _infoRow('Người hủy', _nonEmptyOrDash(order.cancelledBy ?? order.cashierName)),
-    _infoRow('Lý do hủy', _nonEmptyOrDash(order.cancelReason)),
-  ];
 }
 
 String _nonEmptyOrDash(String? value) {
@@ -663,10 +610,10 @@ class _OrderHistoryTabState extends State<_OrderHistoryTab> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             color:
-                (_selectedStatus == OrderStatus.completed
-                        ? Colors.green
-                        : Colors.red)
-                    .withOpacity(0.05),
+            (_selectedStatus == OrderStatus.completed
+                ? Colors.green
+                : Colors.red)
+                .withOpacity(0.05),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -921,7 +868,7 @@ class _OrderTile extends StatelessWidget {
     final isCompact = MediaQuery.sizeOf(context).width < 380;
     final isCancelledDraft =
         order.status == OrderStatus.cancelled &&
-        order.source == OrderSource.posStaff;
+            order.source == OrderSource.posStaff;
     final String methodName;
     final IconData methodIcon;
     final Color methodColor;
@@ -967,7 +914,7 @@ class _OrderTile extends StatelessWidget {
       title: Row(
         children: [
           Text(
-            order.displayOrderCode,
+            order.id?.toString() ?? 'No ID',
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(width: 8),
