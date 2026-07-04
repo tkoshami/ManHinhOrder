@@ -16,6 +16,9 @@ class SupabaseService {
     if (order.transactionCode != null) 'p_transaction_code': order.transactionCode,
     if (order.paidAt != null) 'p_paid_at': order.paidAt!.toUtc().toIso8601String(),
     if (order.cashierName != null) 'p_cashier_name': order.cashierName,
+    if (order.cardBrand != null) 'p_card_brand': order.cardBrand,
+    if (order.cardLastFour != null) 'p_card_last_four': order.cardLastFour,
+    if (order.cardHolderName != null) 'p_card_holder_name': order.cardHolderName,
   };
 
   static Future<dynamic> _rpcWithLegacyRetry(
