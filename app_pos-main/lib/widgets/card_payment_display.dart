@@ -94,6 +94,14 @@ class _CardPaymentDisplayState extends State<CardPaymentDisplay> {
                 controller: _nameOnCardController,
                 hint: 'NGUYEN VAN A',
                 textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                ],
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return 'Vui lòng nhập tên chủ thẻ';
+                  if (value.length < 3) return 'Tên quá ngắn';
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               _buildTextField(
@@ -106,6 +114,12 @@ class _CardPaymentDisplayState extends State<CardPaymentDisplay> {
                   _CardNumberFormatter(),
                   LengthLimitingTextInputFormatter(19),
                 ],
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Vui lòng nhập số thẻ';
+                  String clean = value.replaceAll(' ', '');
+                  if (clean.length < 13) return 'Số thẻ không hợp lệ';
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               Row(
@@ -122,6 +136,23 @@ class _CardPaymentDisplayState extends State<CardPaymentDisplay> {
                         _ExpiryDateFormatter(),
                         LengthLimitingTextInputFormatter(7),
                       ],
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Bắt buộc';
+                        String clean = value.replaceAll(' ', '');
+                        if (clean.length < 5) return 'Sai định dạng';
+                        
+                        List<String> parts = clean.split('/');
+                        int month = int.tryParse(parts[0]) ?? 0;
+                        int year = int.tryParse('20${parts[1].trim()}') ?? 0;
+                        
+                        if (month < 1 || month > 12) return 'Tháng 01-12';
+                        
+                        DateTime now = DateTime.now();
+                        DateTime cardDate = DateTime(year, month + 1, 0); // Last day of month
+                        if (cardDate.isBefore(DateTime(now.year, now.month, 1))) return 'Thẻ đã hết hạn';
+                        
+                        return null;
+                      },
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -135,6 +166,11 @@ class _CardPaymentDisplayState extends State<CardPaymentDisplay> {
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(4),
                       ],
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Bắt buộc';
+                        if (value.length < 3) return '3-4 số';
+                        return null;
+                      },
                       suffixIcon: const Tooltip(
                         message: 'Mã bảo mật (CVV/CVC) gồm 3 hoặc 4 chữ số thường nằm ở mặt sau thẻ.',
                         triggerMode: TooltipTriggerMode.tap,
@@ -150,6 +186,15 @@ class _CardPaymentDisplayState extends State<CardPaymentDisplay> {
                 controller: _zipCodeController,
                 hint: '10000',
                 keyboardType: TextInputType.number,
+                inputFormatters: [
+                   FilteringTextInputFormatter.digitsOnly,
+                   LengthLimitingTextInputFormatter(5),
+                ],
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Vui lòng nhập ZIP code';
+                  if (value.length < 5) return 'Phải có 5 chữ số';
+                  return null;
+                },
                 suffixIcon: const Tooltip(
                   message: 'Mã bưu chính của khu vực (Ví dụ: 70000).',
                   triggerMode: TooltipTriggerMode.tap,
@@ -361,6 +406,7 @@ class _CardPaymentDisplayState extends State<CardPaymentDisplay> {
     Widget? suffixIcon,
     List<TextInputFormatter>? inputFormatters,
     TextCapitalization textCapitalization = TextCapitalization.none,
+    String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,6 +421,7 @@ class _CardPaymentDisplayState extends State<CardPaymentDisplay> {
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
           textCapitalization: textCapitalization,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -397,12 +444,7 @@ class _CardPaymentDisplayState extends State<CardPaymentDisplay> {
               vertical: 12,
             ),
           ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Vui lòng nhập $label';
-            }
-            return null;
-          },
+          validator: validator,
         ),
       ],
     );
@@ -442,7 +484,25 @@ class _ExpiryDateFormatter extends TextInputFormatter {
   ) {
     var text = newValue.text;
     if (newValue.selection.baseOffset == 0) return newValue;
+    
     String digitsOnly = text.replaceAll(RegExp(r'[^0-9]'), '');
+    
+    if (digitsOnly.isNotEmpty) {
+      int firstDigit = int.parse(digitsOnly[0]);
+      if (firstDigit > 1) {
+        digitsOnly = '0' + digitsOnly;
+      }
+    }
+    
+    if (digitsOnly.length >= 2) {
+      int month = int.parse(digitsOnly.substring(0, 2));
+      if (month > 12) {
+        digitsOnly = '12' + digitsOnly.substring(2);
+      } else if (month == 0 && digitsOnly.length == 2) {
+         return oldValue;
+      }
+    }
+
     var buffer = StringBuffer();
     for (int i = 0; i < digitsOnly.length; i++) {
       buffer.write(digitsOnly[i]);
