@@ -88,7 +88,7 @@ class SavedOrder {
   final DateTime dateTime;
   final double subtotal;
   final double discountAmount;
-  final double vatRate;
+  final double vatRate; // %
   final double vatAmount;
   final double totalAmount;
   final String paymentMethod;
@@ -106,7 +106,6 @@ class SavedOrder {
   final String tableOrCustomer;
   final OrderSource source;
   final OrderStatus status;
-  final bool isEdited;
 
   SavedOrder({
     this.id,
@@ -134,7 +133,6 @@ class SavedOrder {
     this.tableOrCustomer = 'Mang đi',
     this.source = OrderSource.posStaff,
     this.status = OrderStatus.pending,
-    this.isEdited = false,
   });
 
   SavedOrder copyWith({
@@ -163,7 +161,6 @@ class SavedOrder {
     String? tableOrCustomer,
     OrderSource? source,
     OrderStatus? status,
-    bool? isEdited,
   }) {
     return SavedOrder(
       id: id ?? this.id,
@@ -191,7 +188,6 @@ class SavedOrder {
       tableOrCustomer: tableOrCustomer ?? this.tableOrCustomer,
       source: source ?? this.source,
       status: status ?? this.status,
-      isEdited: isEdited ?? this.isEdited,
     );
   }
 
@@ -200,15 +196,17 @@ class SavedOrder {
       if (shiftId != null) 'shift_id': shiftId,
       if (orderNumber != null) 'order_number': orderNumber,
       'items': items
-          .map((item) => {
-        'product_id': item.product.id,
-        'name': item.product.name,
-        'price': item.product.price,
-        'quantity': item.quantity,
-        'discount_percent': item.discountPercent,
-        'note': item.note,
-        'discount_reason': item.discountReason,
-      })
+          .map(
+            (item) => {
+              'product_id': item.product.id,
+              'name': item.product.name,
+              'price': item.product.price,
+              'quantity': item.quantity,
+              'discount_percent': item.discountPercent,
+              'note': item.note,
+              'discount_reason': item.discountReason,
+            },
+          )
           .toList(),
       'subtotal_amount': subtotal,
       'discount_amount': discountAmount,
@@ -216,7 +214,8 @@ class SavedOrder {
       'vat_amount': vatAmount,
       'total_amount': totalAmount,
       'payment_method': paymentMethod,
-      if (cashReceivedAmount != null) 'cash_received_amount': cashReceivedAmount,
+      if (cashReceivedAmount != null)
+        'cash_received_amount': cashReceivedAmount,
       if (cashChangeAmount != null) 'cash_change_amount': cashChangeAmount,
       if (cashReturnAmount != null) 'cash_return_amount': cashReturnAmount,
       if (transferMethod != null) 'transfer_method': transferMethod,
@@ -303,20 +302,23 @@ class SavedOrder {
   factory SavedOrder.fromJson(Map<String, dynamic> json) {
     return SavedOrder(
       id: json['id']?.toString(),
-      orderNumber: json['order_number']?.toString() ?? json['orderNumber']?.toString(),
+      orderNumber:
+          json['order_number']?.toString() ?? json['orderNumber']?.toString(),
       shiftId: json['shift_id'],
       items: (json['items'] as List)
-          .map((i) => CartItem(
-        product: Product(
-          id: i['product_id'],
-          name: i['name'],
-          price: (i['price'] as num).toDouble(),
-        ),
-        quantity: i['quantity'],
-        discountPercent: (i['discount_percent'] as num).toDouble(),
-        note: i['note'] ?? '',
-        discountReason: i['discount_reason'] ?? '',
-      ))
+          .map(
+            (i) => CartItem(
+              product: Product(
+                id: i['product_id'],
+                name: i['name'],
+                price: (i['price'] as num).toDouble(),
+              ),
+              quantity: i['quantity'],
+              discountPercent: (i['discount_percent'] as num).toDouble(),
+              note: i['note'] ?? '',
+              discountReason: i['discount_reason'] ?? '',
+            ),
+          )
           .toList(),
       dateTime: DateTime.parse(
         json['order_date'] ?? json['created_at'],
@@ -327,21 +329,37 @@ class SavedOrder {
       vatAmount: (json['vat_amount'] as num).toDouble(),
       totalAmount: (json['total_amount'] as num).toDouble(),
       paymentMethod: json['payment_method'],
-      cashReceivedAmount: _nullableDouble(json['cash_received_amount'] ?? json['cashReceivedAmount']),
-      cashChangeAmount: _nullableDouble(json['cash_change_amount'] ?? json['cashChangeAmount']),
-      cashReturnAmount: _nullableDouble(json['cash_return_amount'] ?? json['cashReturnAmount']),
-      transferMethod: json['transfer_method']?.toString() ?? json['transferMethod']?.toString(),
+      cashReceivedAmount: _nullableDouble(
+        json['cash_received_amount'] ?? json['cashReceivedAmount'],
+      ),
+      cashChangeAmount: _nullableDouble(
+        json['cash_change_amount'] ?? json['cashChangeAmount'],
+      ),
+      cashReturnAmount: _nullableDouble(
+        json['cash_return_amount'] ?? json['cashReturnAmount'],
+      ),
+      transferMethod:
+          json['transfer_method']?.toString() ??
+          json['transferMethod']?.toString(),
       paidAmount: _nullableDouble(json['paid_amount'] ?? json['paidAmount']),
-      transactionCode: json['transaction_code']?.toString() ?? json['transactionCode']?.toString(),
+      transactionCode:
+          json['transaction_code']?.toString() ??
+          json['transactionCode']?.toString(),
       paidAt: _nullableDateTime(json['paid_at'] ?? json['paidAt']),
-      cashierName: json['cashier_name']?.toString() ?? json['cashierName']?.toString(),
+      cashierName:
+          json['cashier_name']?.toString() ?? json['cashierName']?.toString(),
       cancelledAt: _nullableDateTime(json['cancelled_at'] ?? json['cancelledAt']),
-      cancelledBy: json['cancelled_by']?.toString() ?? json['cancelledBy']?.toString(),
-      cancelReason: json['cancel_reason']?.toString() ?? json['cancelReason']?.toString(),
-      tableOrCustomer: json['table_or_customer'] ?? json['table_number'] ?? json['customer_name'] ?? 'Mang đi',
+      cancelledBy:
+          json['cancelled_by']?.toString() ?? json['cancelledBy']?.toString(),
+      cancelReason:
+          json['cancel_reason']?.toString() ?? json['cancelReason']?.toString(),
+      tableOrCustomer:
+          json['table_or_customer'] ??
+          json['table_number'] ??
+          json['customer_name'] ??
+          'Mang đi',
       source: _sourceFromDatabase(json['source']),
       status: _statusFromDatabase(json['status']),
-      isEdited: json['is_edited'] == true,
     );
   }
 
@@ -349,5 +367,6 @@ class SavedOrder {
   double get total => totalAmount;
   double get vatPercent => vatRate;
   int get totalQuantity => items.fold(0, (sum, item) => sum + item.quantity);
-  String get displayOrderCode => orderNumber ?? (id == null ? '---' : 'ZONZON-$id');
+  String get displayOrderCode =>
+      orderNumber ?? (id == null ? '---' : 'ZONZON-$id');
 }
