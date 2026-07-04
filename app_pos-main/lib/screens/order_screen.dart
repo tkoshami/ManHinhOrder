@@ -14,6 +14,7 @@ import 'package:pos_fnb/services/supabase_service.dart';
 import 'package:pos_fnb/widgets/product_image.dart';
 import 'package:pos_fnb/widgets/real_time_clock.dart';
 import 'package:pos_fnb/widgets/vietqr_display.dart';
+import 'package:pos_fnb/widgets/card_payment_display.dart';
 
 class OrderScreen extends StatefulWidget {
   final UserAccount user;
@@ -727,7 +728,6 @@ class _OrderScreenState extends State<OrderScreen> {
                               title: 'Thẻ',
                               icon: Icons.credit_card_outlined,
                               isSelected: selectedMethod == 'Thẻ',
-                              isLocked: true,
                               onTap: () =>
                                   setDialogState(() => selectedMethod = 'Thẻ'),
                             ),
@@ -966,101 +966,102 @@ class _OrderScreenState extends State<OrderScreen> {
                           ),
                         ],
                         if (selectedMethod == 'Thẻ') ...[
-                          const SizedBox(height: 40),
-                          Icon(
-                            Icons.contactless,
-                            size: 100,
-                            color: Colors.blue.shade600,
+                          const SizedBox(height: 10),
+                          CardPaymentDisplay(
+                            amount: order.totalAmount,
+                            onPaymentSuccess: (brand, lastFour, holderName) => _finishPayment(
+                              order,
+                              'Thẻ',
+                              cardBrand: brand,
+                              cardLastFour: lastFour,
+                              cardHolderName: holderName,
+                            ),
                           ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Vui lòng quẹt hoặc chạm thẻ',
-                            style: TextStyle(fontSize: 18, color: Colors.grey),
-                          ),
-                          const SizedBox(height: 40),
                         ],
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  final pMethod = selectedMethod == 'Tiền mặt'
-                                      ? 'cash'
-                                      : (selectedMethod == 'Chuyển khoản'
-                                            ? 'qr_code'
-                                            : 'card');
-                                  _printBill(
-                                    order.copyWith(paymentMethod: pMethod),
-                                    receivedAmount:
-                                        pMethod == 'cash' &&
-                                            receivedAmount >= order.totalAmount
-                                        ? receivedAmount
-                                        : null,
-                                    snackMessage:
-                                        'Đang in bill đơn ${order.displayOrderCode}...',
-                                  );
-                                },
-                                icon: const Icon(Icons.print),
-                                label: const Text(
-                                  'IN BILL',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
+                        if (selectedMethod != 'Thẻ') ...[
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    final pMethod = selectedMethod == 'Tiền mặt'
+                                        ? 'cash'
+                                        : (selectedMethod == 'Chuyển khoản'
+                                              ? 'qr_code'
+                                              : 'card');
+                                    _printBill(
+                                      order.copyWith(paymentMethod: pMethod),
+                                      receivedAmount:
+                                          pMethod == 'cash' &&
+                                              receivedAmount >= order.totalAmount
+                                          ? receivedAmount
+                                          : null,
+                                      snackMessage:
+                                          'Đang in bill đơn ${order.displayOrderCode}...',
+                                    );
+                                  },
+                                  icon: const Icon(Icons.print),
+                                  label: const Text(
+                                    'IN BILL',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  side: BorderSide(
-                                    color: Colors.orange.shade400,
-                                  ),
-                                  foregroundColor: Colors.orange.shade700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: ElevatedButton(
-                                onPressed:
-                                    (selectedMethod == 'Tiền mặt' &&
-                                        receivedAmount < order.totalAmount)
-                                    ? null
-                                    : () => _finishPayment(
-                                        order,
-                                        selectedMethod,
-                                        receivedAmount:
-                                            selectedMethod == 'Tiền mặt'
-                                            ? receivedAmount
-                                            : null,
-                                      ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                      selectedMethod == 'Chuyển khoản'
-                                          ? Colors.blue.shade600
-                                          : Colors.green.shade600,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'THANH TOÁN',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    side: BorderSide(
+                                      color: Colors.orange.shade400,
+                                    ),
+                                    foregroundColor: Colors.orange.shade700,
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: ElevatedButton(
+                                  onPressed:
+                                      (selectedMethod == 'Tiền mặt' &&
+                                          receivedAmount < order.totalAmount)
+                                      ? null
+                                      : () => _finishPayment(
+                                          order,
+                                          selectedMethod,
+                                          receivedAmount:
+                                              selectedMethod == 'Tiền mặt'
+                                              ? receivedAmount
+                                              : null,
+                                        ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        selectedMethod == 'Chuyển khoản'
+                                            ? Colors.blue.shade600
+                                            : Colors.green.shade600,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'THANH TOÁN',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1089,6 +1090,9 @@ class _OrderScreenState extends State<OrderScreen> {
     SavedOrder order,
     String method, {
     double? receivedAmount,
+    String? cardBrand,
+    String? cardLastFour,
+    String? cardHolderName,
   }) async {
     Navigator.pop(context);
     if (method == 'Thẻ') {
@@ -1139,10 +1143,13 @@ class _OrderScreenState extends State<OrderScreen> {
       cashChangeAmount: cashChangeAmount,
       cashReturnAmount: cashChangeAmount,
       transferMethod: paymentMethod == 'qr_code' ? 'VietQR' : null,
-      paidAmount: paymentMethod == 'qr_code' ? order.totalAmount : null,
+      paidAmount: (paymentMethod == 'qr_code' || paymentMethod == 'card') ? order.totalAmount : null,
       transactionCode: paymentMethod == 'qr_code' ? transactionCode : null,
       paidAt: paidAt,
       cashierName: cashierName,
+      cardBrand: cardBrand,
+      cardLastFour: cardLastFour,
+      cardHolderName: cardHolderName,
       source: order.source,
       status: OrderStatus.completed,
     );
@@ -1163,7 +1170,7 @@ class _OrderScreenState extends State<OrderScreen> {
         cashChangeAmount: cashChangeAmount,
         cashReturnAmount: cashChangeAmount,
         transferMethod: paymentMethod == 'qr_code' ? 'VietQR' : null,
-        paidAmount: paymentMethod == 'qr_code' ? order.totalAmount : null,
+        paidAmount: (paymentMethod == 'qr_code' || paymentMethod == 'card') ? order.totalAmount : null,
         transactionCode: paymentMethod == 'qr_code' ? transactionCode : null,
         paidAt: paidAt,
         cashierName: cashierName,

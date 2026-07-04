@@ -100,6 +100,9 @@ class SavedOrder {
   final String? transactionCode;
   final DateTime? paidAt;
   final String? cashierName;
+  final String? cardBrand;
+  final String? cardLastFour;
+  final String? cardHolderName;
   final DateTime? cancelledAt;
   final String? cancelledBy;
   final String? cancelReason;
@@ -127,6 +130,9 @@ class SavedOrder {
     this.transactionCode,
     this.paidAt,
     this.cashierName,
+    this.cardBrand,
+    this.cardLastFour,
+    this.cardHolderName,
     this.cancelledAt,
     this.cancelledBy,
     this.cancelReason,
@@ -155,6 +161,9 @@ class SavedOrder {
     String? transactionCode,
     DateTime? paidAt,
     String? cashierName,
+    String? cardBrand,
+    String? cardLastFour,
+    String? cardHolderName,
     DateTime? cancelledAt,
     String? cancelledBy,
     String? cancelReason,
@@ -182,6 +191,9 @@ class SavedOrder {
       transactionCode: transactionCode ?? this.transactionCode,
       paidAt: paidAt ?? this.paidAt,
       cashierName: cashierName ?? this.cashierName,
+      cardBrand: cardBrand ?? this.cardBrand,
+      cardLastFour: cardLastFour ?? this.cardLastFour,
+      cardHolderName: cardHolderName ?? this.cardHolderName,
       cancelledAt: cancelledAt ?? this.cancelledAt,
       cancelledBy: cancelledBy ?? this.cancelledBy,
       cancelReason: cancelReason ?? this.cancelReason,
@@ -223,6 +235,9 @@ class SavedOrder {
       if (transactionCode != null) 'transaction_code': transactionCode,
       if (paidAt != null) 'paid_at': paidAt!.toUtc().toIso8601String(),
       if (cashierName != null) 'cashier_name': cashierName,
+      if (cardBrand != null) 'card_brand': cardBrand,
+      if (cardLastFour != null) 'card_last_four': cardLastFour,
+      if (cardHolderName != null) 'card_holder_name': cardHolderName,
       if (cancelledAt != null) 'cancelled_at': cancelledAt!.toUtc().toIso8601String(),
       if (cancelledBy != null) 'cancelled_by': cancelledBy,
       if (cancelReason != null) 'cancel_reason': cancelReason,
@@ -348,6 +363,9 @@ class SavedOrder {
       paidAt: _nullableDateTime(json['paid_at'] ?? json['paidAt']),
       cashierName:
           json['cashier_name']?.toString() ?? json['cashierName']?.toString(),
+      cardBrand: json['card_brand']?.toString(),
+      cardLastFour: json['card_last_four']?.toString(),
+      cardHolderName: json['card_holder_name']?.toString(),
       cancelledAt: _nullableDateTime(json['cancelled_at'] ?? json['cancelledAt']),
       cancelledBy:
           json['cancelled_by']?.toString() ?? json['cancelledBy']?.toString(),
