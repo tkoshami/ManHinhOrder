@@ -11,7 +11,13 @@ import 'package:pos_fnb/services/supabase_service.dart';
 class ShiftScreen extends StatefulWidget {
   final UserAccount user;
 
-  const ShiftScreen({super.key, required this.user});
+  /// Khi true: đây là màn hình bắt buộc hiện ngay khi đăng nhập vì thu ngân
+  /// chưa mở ca. Người dùng không thể thoát ra (không có nút back, chặn cả
+  /// back cứng của hệ thống) cho tới khi mở ca thành công — màn hình sẽ tự
+  /// đóng lại lúc đó để tiếp tục vào các chức năng khác.
+  final bool mandatory;
+
+  const ShiftScreen({super.key, required this.user, this.mandatory = false});
 
   @override
   State<ShiftScreen> createState() => _ShiftScreenState();
@@ -125,6 +131,11 @@ class _ShiftScreenState extends State<ShiftScreen> {
         _startCashCtl.clear();
         _showSnack('Đã mở ca làm việc thành công');
         await _load();
+        // Nếu đây là màn hình bắt buộc (chặn truy cập vì chưa mở ca), tự đóng
+        // lại ngay sau khi mở ca thành công để người dùng tiếp tục thao tác.
+        if (widget.mandatory && mounted) {
+          Navigator.of(context).pop();
+        }
       } else {
         _showSnack('Mở ca thất bại, vui lòng thử lại', isError: true);
       }
@@ -256,31 +267,37 @@ class _ShiftScreenState extends State<ShiftScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bg,
-      appBar: AppBar(
-        title: Text(_openShift == null ? 'Mở ca làm việc' : 'Kết ca làm việc',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: false,
-        elevation: 0,
+    return PopScope(
+      // Khi bắt buộc mở ca: chặn mọi cách thoát ra (nút back cứng, vuốt back)
+      // cho tới khi mở ca thành công (lúc đó code sẽ tự gọi pop ở trên).
+      canPop: !widget.mandatory,
+      child: Scaffold(
         backgroundColor: _bg,
-        foregroundColor: Colors.black87,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-          onRefresh: _load,
-          color: _primary,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: _openShift == null
-                  ? _buildOpenShiftForm(key: const ValueKey('open'))
-                  : _buildCloseShiftForm(key: const ValueKey('close')),
+        appBar: AppBar(
+          automaticallyImplyLeading: !widget.mandatory,
+          title: Text(_openShift == null ? 'Mở ca làm việc' : 'Kết ca làm việc',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          centerTitle: false,
+          elevation: 0,
+          backgroundColor: _bg,
+          foregroundColor: Colors.black87,
+          surfaceTintColor: Colors.transparent,
+        ),
+        body: SafeArea(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+            onRefresh: _load,
+            color: _primary,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _openShift == null
+                    ? _buildOpenShiftForm(key: const ValueKey('open'))
+                    : _buildCloseShiftForm(key: const ValueKey('close')),
+              ),
             ),
           ),
         ),
@@ -335,7 +352,7 @@ class _ShiftScreenState extends State<ShiftScreen> {
 
   Widget _buildCloseShiftForm({Key? key}) {
     final startCash = (_openShift?['start_cash'] as num?)?.toDouble() ?? 0;
-    final startAt = DateTime.tryParse(_openShift?['start_at']?.toString() ?? '');
+    final startAt = DateTime.tryParse(_openShift?['start_at']?.toString() ?? '')?.toLocal();
     final cash = (_summary['cash'] as num?)?.toDouble() ?? 0;
     final transfer = (_summary['transfer'] as num?)?.toDouble() ?? 0;
     final other = (_summary['other'] as num?)?.toDouble() ?? 0;

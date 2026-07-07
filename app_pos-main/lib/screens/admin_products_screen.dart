@@ -132,6 +132,17 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
     File? pickedImage;
     bool isSaving = false;
 
+    // Mỗi biến thể là 1 dòng gồm ô nhập tên (VD "500g") + ô nhập giá.
+    // Danh sách này được nhân bản từ sản phẩm đang sửa (nếu có), không giới
+    // hạn số lượng biến thể.
+    final variantRows = <_VariantRow>[
+      for (final v in existing?.variants ?? const <ProductVariant>[])
+        _VariantRow(
+          nameCtl: TextEditingController(text: v.name),
+          priceCtl: TextEditingController(text: v.price.toStringAsFixed(0)),
+        ),
+    ];
+
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -151,9 +162,81 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                 TextField(
                   controller: priceCtl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Giá bán', suffixText: '₫', prefixIcon: Icon(Icons.monetization_on)),
+                  enabled: variantRows.isEmpty,
+                  decoration: InputDecoration(
+                    labelText: variantRows.isEmpty ? 'Giá bán' : 'Giá bán (tự động lấy biến thể đầu tiên)',
+                    suffixText: '₫',
+                    prefixIcon: const Icon(Icons.monetization_on),
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('BIẾN THỂ (SIZE / KHỐI LƯỢNG)',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade600, fontSize: 11.5, letterSpacing: 0.3)),
+                ),
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Để trống nếu món chỉ có 1 giá duy nhất',
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 11.5)),
+                ),
+                const SizedBox(height: 10),
+                ...variantRows.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final row = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 5,
+                          child: TextField(
+                            controller: row.nameCtl,
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              labelText: 'Tên (VD: 500g)',
+                              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 4,
+                          child: TextField(
+                            controller: row.priceCtl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              labelText: 'Giá',
+                              suffixText: '₫',
+                              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                            ),
+                            onChanged: (_) => setDialogState(() {}),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18, color: Colors.red),
+                          onPressed: () => setDialogState(() => variantRows.removeAt(i)),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => setDialogState(() {
+                      variantRows.add(_VariantRow(
+                        nameCtl: TextEditingController(),
+                        priceCtl: TextEditingController(),
+                      ));
+                    }),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Thêm biến thể'),
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -220,7 +303,27 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
               onPressed: isSaving
                   ? null
                   : () async {
-                final price = double.tryParse(priceCtl.text.replaceAll('.', '').replaceAll(',', ''));
+                // Đọc danh sách biến thể từ các dòng đã nhập, bỏ qua dòng
+                // trống hoàn toàn (chưa kịp điền).
+                final variants = <ProductVariant>[];
+                for (final row in variantRows) {
+                  final vName = row.nameCtl.text.trim();
+                  final vPrice = double.tryParse(row.priceCtl.text.replaceAll('.', '').replaceAll(',', ''));
+                  if (vName.isEmpty && vPrice == null) continue;
+                  if (vName.isEmpty || vPrice == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vui lòng nhập đủ tên và giá cho từng biến thể')));
+                    return;
+                  }
+                  variants.add(ProductVariant(name: vName, price: vPrice));
+                }
+
+                // Nếu có biến thể, giá bán chính của món tự lấy theo biến thể
+                // đầu tiên (dùng để hiển thị/sắp xếp trong danh sách);
+                // nếu không có biến thể thì bắt buộc phải nhập giá thủ công.
+                final price = variants.isNotEmpty
+                    ? variants.first.price
+                    : double.tryParse(priceCtl.text.replaceAll('.', '').replaceAll(',', ''));
                 if (nameCtl.text.trim().isEmpty || price == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Vui lòng nhập đủ tên và giá hợp lệ')));
@@ -241,6 +344,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                   imageUrl: imageUrl,
                   categoryName: selectedCategory?.name ?? '',
                   categoryId: selectedCategory?.id,
+                  variants: variants,
                 );
 
                 final ok = existing == null
@@ -455,12 +559,19 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                                 const SizedBox(height: 2),
                                 Text(p.categoryName, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                                 const SizedBox(height: 4),
-                                Text(currencyFormat.format(p.price),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: p.isAvailable ? Colors.orange : Colors.grey.shade400,
-                                      fontSize: 13,
-                                    )),
+                                Text(
+                                  p.hasVariants
+                                      ? 'Từ ${currencyFormat.format(p.minVariantPrice)}'
+                                      : currencyFormat.format(p.price),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: p.isAvailable ? Colors.orange : Colors.grey.shade400,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                if (p.hasVariants)
+                                  Text('${p.variants.length} biến thể',
+                                      style: TextStyle(fontSize: 10.5, color: Colors.grey.shade500)),
                               ],
                             ),
                           ),
@@ -476,6 +587,13 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
       ),
     );
   }
+}
+
+class _VariantRow {
+  final TextEditingController nameCtl;
+  final TextEditingController priceCtl;
+
+  _VariantRow({required this.nameCtl, required this.priceCtl});
 }
 
 class _CategoryFilterChip extends StatelessWidget {

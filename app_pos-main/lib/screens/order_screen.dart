@@ -119,58 +119,28 @@ class _OrderScreenState extends State<OrderScreen> {
     super.dispose();
   }
 
-  /// Chỉ nhắc mở ca cho thu ngân — admin quản lý ca của người khác nên
-  /// không cần tự mở ca để bán hàng.
+  /// Bắt buộc mở ca cho thu ngân trước khi được thao tác các chức năng khác
+  /// — admin quản lý ca của người khác nên không bị chặn theo cách này.
+  /// Nếu chưa có ca đang mở, đẩy sang màn "Mở ca" dạng toàn màn hình, không
+  /// cho thoát ra (không có nút back) cho tới khi mở ca thành công.
   Future<void> _checkOpenShiftReminder() async {
     final needsShift = widget.user.role == UserRole.cashier;
     if (!needsShift) return;
     try {
       final shift = await SupabaseService.getOpenShiftForStaff(widget.user.id);
       if (!mounted || shift != null) return;
-      _showNoOpenShiftDialog();
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (context) => ShiftScreen(user: widget.user, mandatory: true),
+        ),
+      );
+      // Màn "Mở ca" bắt buộc chỉ tự đóng lại sau khi mở ca thành công, nên
+      // tới đây chắc chắn đã có ca mở — không cần kiểm tra lại.
     } catch (_) {
       // Bỏ qua nếu không kiểm tra được (VD: lỗi mạng tạm thời),
-      // để không làm phiền người dùng bằng một lỗi không liên quan tới bán hàng.
+      // để không chặn hẳn ứng dụng vì một lỗi không liên quan tới bán hàng.
     }
-  }
-
-  void _showNoOpenShiftDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), shape: BoxShape.circle),
-              child: const Icon(Icons.point_of_sale_rounded, color: Colors.orange, size: 22),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(child: Text('Chưa mở ca làm việc', style: TextStyle(fontSize: 16))),
-          ],
-        ),
-        content: const Text(
-          'Bạn chưa mở ca làm việc. Vui lòng vào mục "Mở ca / Kết ca" ở menu góc trên bên phải để nhập quỹ tiền mặt đầu ca trước khi bán hàng.',
-          style: TextStyle(fontSize: 13.5, height: 1.4),
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('ĐÃ HIỂU', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _loadPendingOrders() async {
@@ -347,6 +317,7 @@ class _OrderScreenState extends State<OrderScreen> {
           imageUrl: product.imageUrl,
           categoryName: categoryName,
           isAvailable: product.isAvailable,
+          variants: product.variants,
         );
       }).toList();
       _filteredProducts = _allProducts;
@@ -384,17 +355,69 @@ class _OrderScreenState extends State<OrderScreen> {
     });
   }
 
+  // ─── Chọn biến thể (nếu có) trước khi thêm vào giỏ ───
+  void _handleProductTap(Product product) {
+    if (!product.hasVariants) {
+      _showDiscountDialog(context, product);
+      return;
+    }
+    if (product.variants.length == 1) {
+      _showDiscountDialog(context, product, variant: product.variants.first);
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text('Chọn loại', style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+                ),
+                const SizedBox(height: 8),
+                ...product.variants.map((v) => ListTile(
+                  title: Text(v.name),
+                  trailing: Text(
+                    currencyFormat.format(v.price),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showDiscountDialog(context, product, variant: v);
+                  },
+                )),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ─── Thêm mới vào cart ───
   void _addToCartWithDiscount(
       Product product,
       double discountPercent,
       String note,
-      String discountReason,
-      ) {
+      String discountReason, {
+        ProductVariant? variant,
+      }) {
     _syncState(() {
       final index = _cart.indexWhere(
             (item) =>
         item.product.id == product.id &&
+            item.variant?.name == variant?.name &&
             item.discountPercent == discountPercent &&
             item.note == note &&
             item.discountReason == discountReason,
@@ -405,6 +428,7 @@ class _OrderScreenState extends State<OrderScreen> {
         _cart.add(
           CartItem(
             product: product,
+            variant: variant,
             discountPercent: discountPercent,
             note: note,
             discountReason: discountReason,
@@ -428,6 +452,7 @@ class _OrderScreenState extends State<OrderScreen> {
       } else {
         _cart[cartIndex] = CartItem(
           product: _cart[cartIndex].product,
+          variant: _cart[cartIndex].variant,
           quantity: quantity > 100 ? 100 : quantity,
           discountPercent: discountPercent,
           note: note,
@@ -1648,7 +1673,7 @@ class _OrderScreenState extends State<OrderScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item.product.name,
+                                item.displayName,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
@@ -1953,11 +1978,13 @@ class _OrderScreenState extends State<OrderScreen> {
   void _showDiscountDialog(
       BuildContext context,
       Product product, {
+        ProductVariant? variant,
         double initDiscount = 0,
         String initNote = '',
         String initDiscountReason = '',
       }) {
     final bool canEditDiscount = widget.user.role == UserRole.admin || widget.user.role == UserRole.cashier;
+    final unitPrice = variant?.price ?? product.price;
     final discountController = TextEditingController(
       text: (canEditDiscount ? initDiscount : 0) == 0
           ? '0'
@@ -1971,7 +1998,7 @@ class _OrderScreenState extends State<OrderScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           final discountPercent = double.tryParse(discountController.text) ?? 0;
-          final finalPrice = product.price * (1 - discountPercent / 100);
+          final finalPrice = unitPrice * (1 - discountPercent / 100);
           final hasDiscount = discountPercent > 0;
 
           return AlertDialog(
@@ -1981,15 +2008,26 @@ class _OrderScreenState extends State<OrderScreen> {
             title: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    product.name,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.brown,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        product.name,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.brown,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (variant != null)
+                        Text(
+                          variant.name,
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -2034,7 +2072,7 @@ class _OrderScreenState extends State<OrderScreen> {
                             style: TextStyle(color: Colors.grey),
                           ),
                           Text(
-                            currencyFormat.format(product.price),
+                            currencyFormat.format(unitPrice),
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ],
@@ -2242,6 +2280,7 @@ class _OrderScreenState extends State<OrderScreen> {
                         discount,
                         noteController.text.trim(),
                         discountReasonController.text.trim(),
+                        variant: variant,
                       );
                     },
                     icon: const Icon(
@@ -2292,7 +2331,7 @@ class _OrderScreenState extends State<OrderScreen> {
       builder: (dialogCtx) => StatefulBuilder(
         builder: (stateCtx, setDialogState) {
           final discountPercent = double.tryParse(discountController.text) ?? 0;
-          final finalPrice = item.product.price * (1 - discountPercent / 100);
+          final finalPrice = item.unitPrice * (1 - discountPercent / 100);
           final hasDiscount = discountPercent > 0;
 
           return AlertDialog(
@@ -2303,7 +2342,7 @@ class _OrderScreenState extends State<OrderScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    item.product.name,
+                    item.displayName,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -3196,7 +3235,7 @@ class _OrderScreenState extends State<OrderScreen> {
                 isInCart: isInCart,
                 isHandheldPos: isHandheldPos,
                 currencyFormat: currencyFormat,
-                onTap: () => _showDiscountDialog(context, product),
+                onTap: () => _handleProductTap(product),
               );
             },
           ),
@@ -3423,7 +3462,7 @@ class _OrderScreenState extends State<OrderScreen> {
                   MaterialPageRoute(
                     builder: (context) => ShiftScreen(user: widget.user),
                   ),
-                );
+                ).then((_) => _checkOpenShiftReminder());
               } else if (value == 'logout') {
                 await SupabaseService.signOut();
                 if (context.mounted) {
@@ -3705,10 +3744,7 @@ class _OrderScreenState extends State<OrderScreen> {
                         isInCart: isInCart,
                         isHandheldPos: false,
                         currencyFormat: currencyFormat,
-                        onTap: () => _showDiscountDialog(
-                          context,
-                          product,
-                        ),
+                        onTap: () => _handleProductTap(product),
                       );
                     },
                   )),
@@ -4414,7 +4450,7 @@ class _CartItemTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item.product.name,
+                        item.displayName,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: isHandheldPos ? 14 : 16,
@@ -4458,7 +4494,7 @@ class _CartItemTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${currencyFormat.format(item.product.price)} x ${item.quantity}',
+                        '${currencyFormat.format(item.unitPrice)} x ${item.quantity}',
                         style: TextStyle(
                           fontSize: isHandheldPos ? 12 : 14,
                         ),
@@ -4857,7 +4893,7 @@ class _ReceiptItemsTable extends StatelessWidget {
                       ),
                       Expanded(
                         child: Text(
-                          item.product.name,
+                          item.displayName,
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -4885,7 +4921,7 @@ class _ReceiptItemsTable extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(left: 24, top: 2),
                     child: Text(
-                      '${currencyFormat.format(item.product.price)} x ${item.quantity}',
+                      '${currencyFormat.format(item.unitPrice)} x ${item.quantity}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade700,
@@ -4980,7 +5016,7 @@ class _ReceiptItemsTable extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item.product.name,
+                            item.displayName,
                             style: const TextStyle(fontSize: 13),
                           ),
                           if (item.discountPercent > 0)
@@ -4997,7 +5033,7 @@ class _ReceiptItemsTable extends StatelessWidget {
                     SizedBox(
                       width: 80,
                       child: Text(
-                        currencyFormat.format(item.product.price),
+                        currencyFormat.format(item.unitPrice),
                         textAlign: TextAlign.right,
                         style: const TextStyle(fontSize: 13),
                       ),
@@ -5081,7 +5117,9 @@ class _ProductCard extends StatelessWidget {
                         ),
                         SizedBox(height: isHandheldPos ? 2 : 4),
                         Text(
-                          currencyFormat.format(product.price),
+                          product.hasVariants
+                              ? 'Từ ${currencyFormat.format(product.minVariantPrice)}'
+                              : currencyFormat.format(product.price),
                           style: TextStyle(
                             color: Colors.orange,
                             fontWeight: FontWeight.bold,

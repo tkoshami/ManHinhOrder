@@ -130,7 +130,7 @@ class SupabaseService {
     try {
       final response = await _supabase
           .from('products')
-          .select('*, product_categories(name)')
+          .select('*, product_categories(name), product_variants(id, name, price, display_order)')
           .eq('is_available', true)
           .order('display_order', ascending: true);
       final data = response as List;
@@ -154,6 +154,7 @@ class SupabaseService {
               json['image_url'].toString().isNotEmpty)
               ? json['image_url']
               : 'https://picsum.photos/200?random=${json['id']}',
+          variants: _parseVariants(json['product_variants']),
         );
       }).toList();
     } catch (e) {
@@ -162,17 +163,40 @@ class SupabaseService {
     }
   }
 
+  /// Chuyển dữ liệu thô `product_variants` (join từ bảng con) thành
+  /// `List<ProductVariant>`, sắp theo `display_order`.
+  static List<ProductVariant> _parseVariants(dynamic raw) {
+    if (raw is! List) return [];
+    final list = raw.map((v) {
+      final map = Map<String, dynamic>.from(v as Map);
+      return {
+        'variant': ProductVariant(
+          id: int.tryParse(map['id']?.toString() ?? ''),
+          name: (map['name'] ?? '').toString(),
+          price: (map['price'] as num?)?.toDouble() ?? 0.0,
+        ),
+        'order': (map['display_order'] as num?)?.toInt() ?? 0,
+      };
+    }).toList();
+    list.sort((a, b) => (a['order'] as int).compareTo(b['order'] as int));
+    return list.map((e) => e['variant'] as ProductVariant).toList();
+  }
+
   static Future<bool> saveProduct(Product product) async {
     try {
       print('Saving product: ${product.name}, categoryId: ${product.categoryId}');
-      await _supabase.from('products').insert({
+      final inserted = await _supabase.from('products').insert({
         'name': product.name,
         'price': product.price,
         'image_url': product.imageUrl,
         'product_category_id': product.categoryId,
         'is_available': true,
         'display_order': 0,
-      });
+      }).select('id').single();
+      final newProductId = int.tryParse(inserted['id'].toString());
+      if (newProductId != null && product.variants.isNotEmpty) {
+        await _replaceVariants(newProductId, product.variants);
+      }
       return true;
     } catch (e) {
       print('Lỗi lưu sản phẩm chi tiết: $e');
@@ -190,10 +214,35 @@ class SupabaseService {
         'image_url': product.imageUrl,
         'product_category_id': product.categoryId,
       }).eq('id', product.id);
+      await _replaceVariants(product.id, product.variants);
       return true;
     } catch (e) {
       print('Lỗi cập nhật sản phẩm: $e');
       return false;
+    }
+  }
+
+  /// Đồng bộ danh sách biến thể của 1 sản phẩm: xóa hết biến thể cũ rồi
+  /// thêm lại theo danh sách hiện tại trên form. Đơn giản và an toàn cho
+  /// quy mô nhỏ (vài biến thể mỗi món), tránh phải so khớp từng dòng.
+  static Future<void> _replaceVariants(int productId, List<ProductVariant> variants) async {
+    try {
+      await _supabase.from('product_variants').delete().eq('product_id', productId);
+      if (variants.isEmpty) return;
+      await _supabase.from('product_variants').insert(
+        variants
+            .asMap()
+            .entries
+            .map((e) => {
+          'product_id': productId,
+          'name': e.value.name,
+          'price': e.value.price,
+          'display_order': e.key,
+        })
+            .toList(),
+      );
+    } catch (e) {
+      print('Lỗi đồng bộ biến thể sản phẩm: $e');
     }
   }
 
@@ -221,7 +270,7 @@ class SupabaseService {
     try {
       final response = await _supabase
           .from('products')
-          .select('*, product_categories(name)')
+          .select('*, product_categories(name), product_variants(id, name, price, display_order)')
           .order('display_order', ascending: true);
       final data = response as List;
       return data.map((json) {
@@ -245,6 +294,7 @@ class SupabaseService {
               ? json['image_url']
               : 'https://picsum.photos/200?random=${json['id']}',
           isAvailable: json['is_available'] as bool? ?? true,
+          variants: _parseVariants(json['product_variants']),
         );
       }).toList();
     } catch (e) {
@@ -315,7 +365,7 @@ class SupabaseService {
   }) async {
     try {
       await _supabase.from('shifts').update({
-        'end_at': DateTime.now().toIso8601String(),
+        'end_at': DateTime.now().toUtc().toIso8601String(),
         'end_cash': endCash,
         'expected_cash': expectedCash,
         'cash_difference': endCash - expectedCash,
@@ -440,7 +490,7 @@ class SupabaseService {
       final cashRevenue = (summary['cash'] as num?)?.toDouble() ?? 0;
       final expectedCash = startCash + cashRevenue;
       await _supabase.from('shifts').update({
-        'end_at': DateTime.now().toIso8601String(),
+        'end_at': DateTime.now().toUtc().toIso8601String(),
         'end_cash': expectedCash,
         'expected_cash': expectedCash,
         'cash_difference': 0,

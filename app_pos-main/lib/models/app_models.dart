@@ -42,6 +42,39 @@ class Category {
   Category({required this.id, required this.name});
 }
 
+/// Một biến thể (size/khối lượng) của sản phẩm, VD "500g" - 150.000đ,
+/// "1000g" - 300.000đ. Sản phẩm không có biến thể nào vẫn hoạt động bình
+/// thường, dùng thẳng `Product.price`.
+class ProductVariant {
+  final int? id;
+  final String name;
+  final double price;
+
+  ProductVariant({this.id, required this.name, required this.price});
+
+  ProductVariant copyWith({int? id, String? name, double? price}) {
+    return ProductVariant(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      price: price ?? this.price,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    if (id != null) 'id': id,
+    'name': name,
+    'price': price,
+  };
+
+  factory ProductVariant.fromJson(Map<String, dynamic> json) {
+    return ProductVariant(
+      id: json['id'] == null ? null : int.tryParse(json['id'].toString()),
+      name: (json['name'] ?? '').toString(),
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
 class Product {
   final int id;
   final int? categoryId;
@@ -50,6 +83,7 @@ class Product {
   final String imageUrl;
   final String categoryName;
   final bool isAvailable;
+  final List<ProductVariant> variants;
 
   Product({
     required this.id,
@@ -59,11 +93,20 @@ class Product {
     this.imageUrl = '',
     this.categoryName = '',
     this.isAvailable = true,
+    this.variants = const [],
   });
+
+  bool get hasVariants => variants.isNotEmpty;
+
+  /// Giá thấp nhất trong các biến thể (dùng để hiển thị "Từ x đ" trên menu
+  /// khi sản phẩm có nhiều biến thể).
+  double get minVariantPrice =>
+      hasVariants ? variants.map((v) => v.price).reduce((a, b) => a < b ? a : b) : price;
 }
 
 class CartItem {
   final Product product;
+  final ProductVariant? variant;
   int quantity;
   double discountPercent;
   String note;
@@ -71,13 +114,21 @@ class CartItem {
 
   CartItem({
     required this.product,
+    this.variant,
     this.quantity = 1,
     this.discountPercent = 0,
     this.note = '',
     this.discountReason = '',
   });
 
-  double get total => (product.price * quantity) * (1 - discountPercent / 100);
+  /// Đơn giá thực tế: lấy giá biến thể đã chọn nếu có, ngược lại dùng giá
+  /// gốc của sản phẩm.
+  double get unitPrice => variant?.price ?? product.price;
+
+  /// Tên hiển thị kèm biến thể, VD "Chả thủ (500g)".
+  String get displayName => variant != null ? '${product.name} (${variant!.name})' : product.name;
+
+  double get total => (unitPrice * quantity) * (1 - discountPercent / 100);
 }
 
 class SavedOrder {
@@ -203,11 +254,13 @@ class SavedOrder {
           .map((item) => {
         'product_id': item.product.id,
         'name': item.product.name,
-        'price': item.product.price,
+        'price': item.unitPrice,
         'quantity': item.quantity,
         'discount_percent': item.discountPercent,
         'note': item.note,
         'discount_reason': item.discountReason,
+        if (item.variant != null) 'variant_name': item.variant!.name,
+        if (item.variant != null) 'variant_price': item.variant!.price,
       })
           .toList(),
       'subtotal_amount': subtotal,
@@ -312,6 +365,13 @@ class SavedOrder {
           name: i['name'],
           price: (i['price'] as num).toDouble(),
         ),
+        variant: i['variant_name'] != null
+            ? ProductVariant(
+          name: i['variant_name'].toString(),
+          price: (i['variant_price'] as num?)?.toDouble() ??
+              (i['price'] as num).toDouble(),
+        )
+            : null,
         quantity: i['quantity'],
         discountPercent: (i['discount_percent'] as num).toDouble(),
         note: i['note'] ?? '',

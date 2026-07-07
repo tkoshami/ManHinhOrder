@@ -354,6 +354,12 @@ class _ShiftReportTabState extends State<_ShiftReportTab> {
   List<Map<String, dynamic>> _shifts = [];
   List<SavedOrder> _allOrders = [];
 
+  /// Ngày (định dạng dd/MM/yyyy) đang được thu gọn (ẩn danh sách ca).
+  /// Mặc định chỉ ngày gần nhất được mở sẵn, các ngày cũ hơn thu gọn lại
+  /// để danh sách gọn hơn khi có nhiều ca lịch sử.
+  final Set<String> _collapsedDates = {};
+  bool _initializedCollapse = false;
+
   @override
   void initState() {
     super.initState();
@@ -384,7 +390,62 @@ class _ShiftReportTabState extends State<_ShiftReportTab> {
 
   DateTime? _parseDate(dynamic v) {
     if (v == null) return null;
-    return DateTime.tryParse(v.toString());
+    return DateTime.tryParse(v.toString())?.toLocal();
+  }
+
+  _ShiftMeta _buildMeta(Map<String, dynamic> shift) {
+    final id = _field(shift, ['id']);
+    final staffName = _field(shift, ['staff_name', 'full_name', 'cashier_name']) ?? 'Nhân viên';
+    final status = (_field(shift, ['status']) ?? '').toString();
+    final openedAt = _parseDate(_field(shift, ['start_at', 'opened_at', 'start_time', 'created_at']));
+    final closedAt = _parseDate(_field(shift, ['end_at', 'closed_at', 'end_time']));
+    final openingCash = (_field(shift, ['opening_cash', 'start_cash']) as num?)?.toDouble();
+    final closingCash = (_field(shift, ['closing_cash', 'end_cash']) as num?)?.toDouble();
+
+    final shiftOrders = _allOrders.where((o) => o.shiftId != null && o.shiftId.toString() == id.toString()).toList();
+    final cashTotal = shiftOrders.where((o) => o.paymentMethod == 'cash').fold(0.0, (s, o) => s + o.totalAmount);
+    final transferTotal = shiftOrders.where((o) => o.paymentMethod == 'qr_code').fold(0.0, (s, o) => s + o.totalAmount);
+
+    return _ShiftMeta(
+      id: id,
+      staffName: staffName.toString(),
+      isOpen: status == 'open',
+      openedAt: openedAt,
+      closedAt: closedAt,
+      openingCash: openingCash,
+      closingCash: closingCash,
+      orderCount: shiftOrders.length,
+      cashTotal: cashTotal,
+      transferTotal: transferTotal,
+    );
+  }
+
+  /// Gộp danh sách ca theo ngày (dựa trên thời điểm mở ca), giữ nguyên thứ tự
+  /// ca mới nhất lên trước như dữ liệu gốc trả về.
+  List<_ShiftDayGroup> _groupByDay(List<_ShiftMeta> metas) {
+    final groups = <String, _ShiftDayGroup>{};
+    final order = <String>[];
+    for (final meta in metas) {
+      final day = meta.openedAt ?? meta.closedAt;
+      final key = day != null ? DateFormat('dd/MM/yyyy').format(day) : 'Không rõ ngày';
+      if (!groups.containsKey(key)) {
+        groups[key] = _ShiftDayGroup(dateLabel: key, date: day, shifts: []);
+        order.add(key);
+      }
+      groups[key]!.shifts.add(meta);
+    }
+    return order.map((k) => groups[k]!).toList();
+  }
+
+  String _relativeDayLabel(DateTime? date) {
+    if (date == null) return '';
+    final now = DateTime.now();
+    final d = DateTime(date.year, date.month, date.day);
+    final today = DateTime(now.year, now.month, now.day);
+    final diff = today.difference(d).inDays;
+    if (diff == 0) return 'Hôm nay';
+    if (diff == 1) return 'Hôm qua';
+    return '';
   }
 
   @override
@@ -412,94 +473,288 @@ class _ShiftReportTabState extends State<_ShiftReportTab> {
       );
     }
 
+    final metas = _shifts.map(_buildMeta).toList();
+    final groups = _groupByDay(metas);
+
+    // Mặc định luôn mở sẵn nhóm của HÔM NAY (nếu có), các ngày khác thu gọn.
+    // Nếu hôm nay chưa có ca nào thì không tự mở ngày nào khác thay thế.
+    // Chỉ tính một lần khi có dữ liệu, để không ghi đè lựa chọn người dùng
+    // đã tự bấm sau đó.
+    final todayLabel = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    final hasToday = groups.any((g) => g.dateLabel == todayLabel);
+    if (!_initializedCollapse) {
+      _initializedCollapse = true;
+      for (final g in groups) {
+        if (g.dateLabel != todayLabel) _collapsedDates.add(g.dateLabel);
+      }
+    }
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _shifts.length,
+        itemCount: groups.length + (hasToday ? 0 : 1),
         itemBuilder: (context, i) {
-          final shift = _shifts[i];
-          final id = _field(shift, ['id']);
-          final staffName = _field(shift, ['staff_name', 'full_name', 'cashier_name']) ?? 'Nhân viên';
-          final status = (_field(shift, ['status']) ?? '').toString();
-          final openedAt = _parseDate(_field(shift, ['opened_at', 'start_time', 'created_at']));
-          final closedAt = _parseDate(_field(shift, ['closed_at', 'end_time']));
-          final openingCash = (_field(shift, ['opening_cash', 'start_cash']) as num?)?.toDouble();
-          final closingCash = (_field(shift, ['closing_cash', 'end_cash']) as num?)?.toDouble();
+          if (!hasToday && i == 0) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.event_busy_rounded, color: Colors.grey.shade400, size: 18),
+                  const SizedBox(width: 10),
+                  Text('Hôm nay chưa có ca nào', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                ],
+              ),
+            );
+          }
+          final group = groups[hasToday ? i : i - 1];
+          final isCollapsed = _collapsedDates.contains(group.dateLabel);
+          final relative = _relativeDayLabel(group.date);
 
-          final shiftOrders = _allOrders.where((o) => o.shiftId != null && o.shiftId.toString() == id.toString()).toList();
-          final cashTotal = shiftOrders.where((o) => o.paymentMethod == 'cash').fold(0.0, (s, o) => s + o.totalAmount);
-          final transferTotal = shiftOrders.where((o) => o.paymentMethod == 'qr_code').fold(0.0, (s, o) => s + o.totalAmount);
-          final isOpen = status == 'open';
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
-            ),
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text('Ca #$id — $staffName',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: (isOpen ? Colors.green : Colors.grey).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(isOpen ? 'Đang mở ca' : 'Đã kết ca',
-                          style: TextStyle(color: isOpen ? Colors.green : Colors.grey.shade700, fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
+                _ShiftDayHeader(
+                  dateLabel: group.dateLabel,
+                  relativeLabel: relative,
+                  shiftCount: group.shifts.length,
+                  totalRevenue: group.totalRevenue,
+                  currencyFormat: currencyFormat,
+                  collapsed: isCollapsed,
+                  onTap: () {
+                    setState(() {
+                      if (isCollapsed) {
+                        _collapsedDates.remove(group.dateLabel);
+                      } else {
+                        _collapsedDates.add(group.dateLabel);
+                      }
+                    });
+                  },
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ShiftInfoRow(
-                        icon: Icons.login,
-                        label: 'Đầu ca',
-                        time: openedAt != null ? DateFormat('dd/MM HH:mm').format(openedAt) : '—',
-                        cash: openingCash != null ? currencyFormat.format(openingCash) : null,
-                      ),
-                    ),
-                    Expanded(
-                      child: _ShiftInfoRow(
-                        icon: Icons.logout,
-                        label: 'Kết ca',
-                        time: closedAt != null ? DateFormat('dd/MM HH:mm').format(closedAt) : (isOpen ? 'Chưa kết' : '—'),
-                        cash: closingCash != null ? currencyFormat.format(closingCash) : null,
-                      ),
-                    ),
-                  ],
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 200),
+                  crossFadeState: isCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                  firstChild: const SizedBox(width: double.infinity),
+                  secondChild: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      ...group.shifts.map((meta) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _ShiftCard(meta: meta, currencyFormat: currencyFormat),
+                      )),
+                    ],
+                  ),
                 ),
-                const Divider(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ShiftRevenueChip(icon: Icons.payments, color: Colors.green, label: 'Tiền mặt', amount: currencyFormat.format(cashTotal)),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ShiftRevenueChip(icon: Icons.qr_code, color: Colors.blue, label: 'Chuyển khoản', amount: currencyFormat.format(transferTotal)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text('${shiftOrders.length} đơn hàng trong ca • Tổng: ${currencyFormat.format(cashTotal + transferTotal)}',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Dữ liệu đã được tính toán sẵn cho một ca làm việc, dùng chung giữa bước
+/// gộp nhóm theo ngày và bước hiển thị card chi tiết.
+class _ShiftMeta {
+  final dynamic id;
+  final String staffName;
+  final bool isOpen;
+  final DateTime? openedAt;
+  final DateTime? closedAt;
+  final double? openingCash;
+  final double? closingCash;
+  final int orderCount;
+  final double cashTotal;
+  final double transferTotal;
+
+  _ShiftMeta({
+    required this.id,
+    required this.staffName,
+    required this.isOpen,
+    required this.openedAt,
+    required this.closedAt,
+    required this.openingCash,
+    required this.closingCash,
+    required this.orderCount,
+    required this.cashTotal,
+    required this.transferTotal,
+  });
+
+  double get totalRevenue => cashTotal + transferTotal;
+}
+
+class _ShiftDayGroup {
+  final String dateLabel;
+  final DateTime? date;
+  final List<_ShiftMeta> shifts;
+
+  _ShiftDayGroup({required this.dateLabel, required this.date, required this.shifts});
+
+  double get totalRevenue => shifts.fold(0.0, (s, m) => s + m.totalRevenue);
+}
+
+/// Header gộp theo ngày: hiển thị ngày, số ca, tổng doanh thu trong ngày,
+/// và cho phép bấm để thu gọn / mở rộng danh sách ca của ngày đó.
+class _ShiftDayHeader extends StatelessWidget {
+  final String dateLabel;
+  final String relativeLabel;
+  final int shiftCount;
+  final double totalRevenue;
+  final NumberFormat currencyFormat;
+  final bool collapsed;
+  final VoidCallback onTap;
+
+  const _ShiftDayHeader({
+    required this.dateLabel,
+    required this.relativeLabel,
+    required this.shiftCount,
+    required this.totalRevenue,
+    required this.currencyFormat,
+    required this.collapsed,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.calendar_today_rounded, color: Colors.orange, size: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(dateLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        if (relativeLabel.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(20)),
+                            child: Text(relativeLabel,
+                                style: TextStyle(color: Colors.orange.shade700, fontSize: 10.5, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text('$shiftCount ca • Doanh thu ${currencyFormat.format(totalRevenue)}',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  ],
+                ),
+              ),
+              Icon(collapsed ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
+                  color: Colors.grey.shade500),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card chi tiết một ca làm việc (tách ra từ danh sách để dùng lại bên trong
+/// từng nhóm ngày).
+class _ShiftCard extends StatelessWidget {
+  final _ShiftMeta meta;
+  final NumberFormat currencyFormat;
+
+  const _ShiftCard({required this.meta, required this.currencyFormat});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Ca #${meta.id} — ${meta.staffName}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (meta.isOpen ? Colors.green : Colors.grey).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(meta.isOpen ? 'Đang mở ca' : 'Đã kết ca',
+                    style: TextStyle(color: meta.isOpen ? Colors.green : Colors.grey.shade700, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _ShiftInfoRow(
+                  icon: Icons.login,
+                  label: 'Đầu ca',
+                  time: meta.openedAt != null ? DateFormat('dd/MM HH:mm').format(meta.openedAt!) : '—',
+                  cash: meta.openingCash != null ? currencyFormat.format(meta.openingCash) : null,
+                ),
+              ),
+              Expanded(
+                child: _ShiftInfoRow(
+                  icon: Icons.logout,
+                  label: 'Kết ca',
+                  time: meta.closedAt != null
+                      ? DateFormat('dd/MM HH:mm').format(meta.closedAt!)
+                      : (meta.isOpen ? 'Chưa kết' : '—'),
+                  cash: meta.closingCash != null ? currencyFormat.format(meta.closingCash) : null,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: _ShiftRevenueChip(icon: Icons.payments, color: Colors.green, label: 'Tiền mặt', amount: currencyFormat.format(meta.cashTotal)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ShiftRevenueChip(icon: Icons.qr_code, color: Colors.blue, label: 'Chuyển khoản', amount: currencyFormat.format(meta.transferTotal)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('${meta.orderCount} đơn hàng trong ca • Tổng: ${currencyFormat.format(meta.totalRevenue)}',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+        ],
       ),
     );
   }
