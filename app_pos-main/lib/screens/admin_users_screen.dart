@@ -15,7 +15,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   bool _loading = true;
   String _search = '';
 
-  static const _roles = ['admin', 'cashier', 'user'];
+  static const _roles = ['admin', 'shift_leader', 'cashier', 'user'];
 
   @override
   void initState() {
@@ -37,6 +37,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     switch (role) {
       case 'admin':
         return 'Quản trị viên';
+      case 'shift_leader':
+        return 'Trưởng ca';
       case 'cashier':
         return 'Thu ngân';
       case 'user':
@@ -49,6 +51,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     switch (role) {
       case 'admin':
         return Colors.purple;
+      case 'shift_leader':
+        return Colors.indigo;
       case 'cashier':
         return Colors.orange;
       case 'user':

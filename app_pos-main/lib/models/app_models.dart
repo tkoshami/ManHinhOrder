@@ -1,8 +1,12 @@
-﻿enum UserRole { admin, cashier, user }
+﻿enum UserRole { admin, shiftLeader, cashier, user }
 
 enum OrderSource { kiosk, qrCode, posStaff }
 
 enum OrderStatus { pending, cooking, completed, cancelled }
+
+enum InventoryItemType { material, product }
+
+enum InventoryTransactionType { stockIn, stockOut, adjustment }
 
 class UserAccount {
   final String id;
@@ -11,13 +15,29 @@ class UserAccount {
   final UserRole role;
   String? avatarUrl;
 
+  /// ID vai trò trong bảng `roles` (Admin/Thu ngân/Phục vụ/Trưởng ca...),
+  /// dùng cho hệ thống phân quyền chi tiết — độc lập với `role` (enum cũ)
+  /// ở trên, vốn vẫn quyết định các luồng lớn (admin/thu ngân/khách).
+  final int? roleId;
+  final String roleName;
+
+  /// Tập hợp các "quyền" (permission key) đã được TÍNH SẴN lúc đăng nhập:
+  /// quyền mặc định theo vai trò + ghi đè riêng cho tài khoản này (nếu có).
+  final Set<String> permissions;
+
   UserAccount({
     required this.id,
     required this.name,
     required this.email,
     required this.role,
     this.avatarUrl,
+    this.roleId,
+    this.roleName = '',
+    this.permissions = const {},
   });
+
+  /// Kiểm tra tài khoản có quyền [key] hay không.
+  bool can(String key) => permissions.contains(key);
 
   UserAccount copyWith({
     String? id,
@@ -25,6 +45,9 @@ class UserAccount {
     String? email,
     UserRole? role,
     String? avatarUrl,
+    int? roleId,
+    String? roleName,
+    Set<String>? permissions,
   }) {
     return UserAccount(
       id: id ?? this.id,
@@ -32,6 +55,9 @@ class UserAccount {
       email: email ?? this.email,
       role: role ?? this.role,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      roleId: roleId ?? this.roleId,
+      roleName: roleName ?? this.roleName,
+      permissions: permissions ?? this.permissions,
     );
   }
 }
@@ -410,4 +436,159 @@ class SavedOrder {
   double get vatPercent => vatRate;
   int get totalQuantity => items.fold(0, (sum, item) => sum + item.quantity);
   String get displayOrderCode => orderNumber ?? (id == null ? '---' : 'ZONZON-$id');
+}
+
+/// Một mặt hàng trong kho: có thể là nguyên liệu (material) hoặc chính
+/// sản phẩm đang bán (product, có thể liên kết tới `Product.id`).
+class InventoryItem {
+  final int id;
+  final String name;
+  final InventoryItemType type;
+  final String unit;
+  final double currentStock;
+  final double lowStockThreshold;
+  final int? linkedProductId;
+  final String? note;
+  final DateTime? updatedAt;
+
+  InventoryItem({
+    required this.id,
+    required this.name,
+    required this.type,
+    this.unit = 'cái',
+    this.currentStock = 0,
+    this.lowStockThreshold = 0,
+    this.linkedProductId,
+    this.note,
+    this.updatedAt,
+  });
+
+  bool get isLowStock => currentStock <= lowStockThreshold;
+
+  InventoryItem copyWith({
+    int? id,
+    String? name,
+    InventoryItemType? type,
+    String? unit,
+    double? currentStock,
+    double? lowStockThreshold,
+    int? linkedProductId,
+    String? note,
+    DateTime? updatedAt,
+  }) {
+    return InventoryItem(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      unit: unit ?? this.unit,
+      currentStock: currentStock ?? this.currentStock,
+      lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
+      linkedProductId: linkedProductId ?? this.linkedProductId,
+      note: note ?? this.note,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  static InventoryItemType _typeFromDatabase(dynamic value) {
+    switch (value?.toString()) {
+      case 'product':
+        return InventoryItemType.product;
+      case 'material':
+      default:
+        return InventoryItemType.material;
+    }
+  }
+
+  static String typeToDatabase(InventoryItemType type) {
+    switch (type) {
+      case InventoryItemType.material:
+        return 'material';
+      case InventoryItemType.product:
+        return 'product';
+    }
+  }
+
+  factory InventoryItem.fromJson(Map<String, dynamic> json) {
+    return InventoryItem(
+      id: int.tryParse(json['id'].toString()) ?? 0,
+      name: (json['name'] ?? '').toString(),
+      type: _typeFromDatabase(json['type']),
+      unit: (json['unit'] ?? 'cái').toString(),
+      currentStock: (json['current_stock'] as num?)?.toDouble() ?? 0,
+      lowStockThreshold: (json['low_stock_threshold'] as num?)?.toDouble() ?? 0,
+      linkedProductId: json['linked_product_id'] == null
+          ? null
+          : int.tryParse(json['linked_product_id'].toString()),
+      note: json['note']?.toString(),
+      updatedAt: json['updated_at'] == null
+          ? null
+          : DateTime.tryParse(json['updated_at'].toString())?.toLocal(),
+    );
+  }
+}
+
+/// Một lần nhập/xuất/điều chỉnh kho, gắn với 1 [InventoryItem].
+class InventoryTransaction {
+  final int id;
+  final int itemId;
+  final InventoryTransactionType type;
+  final double quantity;
+  final String? note;
+  final String? createdByName;
+  final DateTime createdAt;
+
+  /// Tên/đơn vị mặt hàng kèm theo (join lúc lấy danh sách lịch sử), để
+  /// hiển thị không cần tra cứu lại `InventoryItem` tương ứng.
+  final String? itemName;
+  final String? itemUnit;
+
+  InventoryTransaction({
+    required this.id,
+    required this.itemId,
+    required this.type,
+    required this.quantity,
+    this.note,
+    this.createdByName,
+    required this.createdAt,
+    this.itemName,
+    this.itemUnit,
+  });
+
+  static InventoryTransactionType _typeFromDatabase(dynamic value) {
+    switch (value?.toString()) {
+      case 'in':
+        return InventoryTransactionType.stockIn;
+      case 'out':
+        return InventoryTransactionType.stockOut;
+      case 'adjustment':
+      default:
+        return InventoryTransactionType.adjustment;
+    }
+  }
+
+  static String typeToDatabase(InventoryTransactionType type) {
+    switch (type) {
+      case InventoryTransactionType.stockIn:
+        return 'in';
+      case InventoryTransactionType.stockOut:
+        return 'out';
+      case InventoryTransactionType.adjustment:
+        return 'adjustment';
+    }
+  }
+
+  factory InventoryTransaction.fromJson(Map<String, dynamic> json) {
+    final item = json['inventory_items'];
+    return InventoryTransaction(
+      id: int.tryParse(json['id'].toString()) ?? 0,
+      itemId: int.tryParse(json['item_id'].toString()) ?? 0,
+      type: _typeFromDatabase(json['type']),
+      quantity: (json['quantity'] as num?)?.toDouble() ?? 0,
+      note: json['note']?.toString(),
+      createdByName: json['created_by_name']?.toString(),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+      itemName: item is Map ? item['name']?.toString() : null,
+      itemUnit: item is Map ? item['unit']?.toString() : null,
+    );
+  }
 }

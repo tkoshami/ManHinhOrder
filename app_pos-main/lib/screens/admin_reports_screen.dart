@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
+import 'package:pos_fnb/widgets/product_image.dart';
 
 /// Màn hình báo cáo cho admin: doanh thu tiền mặt / chuyển khoản,
 /// và báo cáo đầu ca / kết ca.
@@ -627,21 +628,21 @@ class _ShiftDayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.grey.shade200),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))],
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), shape: BoxShape.circle),
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.12), shape: BoxShape.circle),
                 child: const Icon(Icons.calendar_today_rounded, color: Colors.orange, size: 16),
               ),
               const SizedBox(width: 12),
@@ -651,7 +652,7 @@ class _ShiftDayHeader extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text(dateLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text(dateLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
                         if (relativeLabel.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           Container(
@@ -663,14 +664,31 @@ class _ShiftDayHeader extends StatelessWidget {
                         ],
                       ],
                     ),
-                    const SizedBox(height: 3),
-                    Text('$shiftCount ca • Doanh thu ${currencyFormat.format(totalRevenue)}',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        children: [
+                          TextSpan(text: '$shiftCount ca  •  '),
+                          TextSpan(
+                            text: 'Doanh thu ${currencyFormat.format(totalRevenue)}',
+                            style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Icon(collapsed ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
-                  color: Colors.grey.shade500),
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
+                child: Icon(
+                  collapsed ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
+                  color: Colors.grey.shade600,
+                  size: 20,
+                ),
+              ),
             ],
           ),
         ),
@@ -687,73 +705,198 @@ class _ShiftCard extends StatelessWidget {
 
   const _ShiftCard({required this.meta, required this.currencyFormat});
 
+  String get _initial {
+    final trimmed = meta.staffName.trim();
+    return trimmed.isNotEmpty ? trimmed.substring(0, 1).toUpperCase() : '?';
+  }
+
+  String? get _durationLabel {
+    final start = meta.openedAt;
+    if (start == null) return null;
+    final end = meta.closedAt ?? (meta.isOpen ? DateTime.now() : null);
+    if (end == null) return null;
+    final d = end.difference(start);
+    if (d.isNegative) return null;
+    final h = d.inHours;
+    final m = d.inMinutes % 60;
+    return h > 0 ? '$h giờ $m phút' : '$m phút';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final expectedCash =
+    meta.openingCash != null ? meta.openingCash! + meta.cashTotal : null;
+    final diff = (!meta.isOpen && expectedCash != null && meta.closingCash != null)
+        ? meta.closingCash! - expectedCash
+        : null;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: meta.isOpen
+              ? Colors.green.shade200
+              : (diff != null && diff != 0 ? Colors.red.shade100 : Colors.transparent),
+        ),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              CircleAvatar(
+                radius: 19,
+                backgroundColor: Colors.orange.shade50,
+                child: Text(_initial, style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text('Ca #${meta.id} — ${meta.staffName}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(meta.staffName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text('Ca #${meta.id}', style: TextStyle(color: Colors.grey.shade500, fontSize: 11.5)),
+                        if (_durationLabel != null) ...[
+                          Text('  •  ', style: TextStyle(color: Colors.grey.shade400, fontSize: 11.5)),
+                          Icon(Icons.access_time_rounded, size: 12, color: Colors.grey.shade500),
+                          const SizedBox(width: 3),
+                          Text(_durationLabel!, style: TextStyle(color: Colors.grey.shade500, fontSize: 11.5)),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: (meta.isOpen ? Colors.green : Colors.grey).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(meta.isOpen ? 'Đang mở ca' : 'Đã kết ca',
-                    style: TextStyle(color: meta.isOpen ? Colors.green : Colors.grey.shade700, fontSize: 11, fontWeight: FontWeight.bold)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(meta.isOpen ? Icons.play_circle_fill_rounded : Icons.check_circle_rounded,
+                        size: 12, color: meta.isOpen ? Colors.green.shade600 : Colors.grey.shade600),
+                    const SizedBox(width: 4),
+                    Text(meta.isOpen ? 'Đang mở ca' : 'Đã kết ca',
+                        style: TextStyle(
+                            color: meta.isOpen ? Colors.green.shade700 : Colors.grey.shade700,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _ShiftInfoRow(
+                    icon: Icons.login_rounded,
+                    iconColor: Colors.green.shade600,
+                    label: 'Đầu ca',
+                    time: meta.openedAt != null ? DateFormat('dd/MM HH:mm').format(meta.openedAt!) : '—',
+                    cash: meta.openingCash != null ? currencyFormat.format(meta.openingCash) : null,
+                  ),
+                ),
+                Container(width: 1, color: Colors.grey.shade100, margin: const EdgeInsets.symmetric(horizontal: 4)),
+                Expanded(
+                  child: _ShiftInfoRow(
+                    icon: Icons.logout_rounded,
+                    iconColor: meta.isOpen ? Colors.grey.shade400 : Colors.red.shade400,
+                    label: 'Kết ca',
+                    time: meta.closedAt != null
+                        ? DateFormat('dd/MM HH:mm').format(meta.closedAt!)
+                        : (meta.isOpen ? 'Chưa kết' : '—'),
+                    cash: meta.closingCash != null ? currencyFormat.format(meta.closingCash) : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (diff != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: (diff == 0 ? Colors.green : (diff > 0 ? Colors.blue : Colors.red)).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    diff == 0
+                        ? Icons.check_circle_rounded
+                        : (diff > 0 ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded),
+                    size: 15,
+                    color: diff == 0 ? Colors.green.shade700 : (diff > 0 ? Colors.blue.shade700 : Colors.red.shade700),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    diff == 0 ? 'Khớp quỹ' : (diff > 0 ? 'Dư quỹ' : 'Thiếu quỹ'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: diff == 0 ? Colors.green.shade700 : (diff > 0 ? Colors.blue.shade700 : Colors.red.shade700),
+                    ),
+                  ),
+                  if (diff != 0) ...[
+                    const Spacer(),
+                    Text(
+                      currencyFormat.format(diff.abs()),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: diff > 0 ? Colors.blue.shade700 : Colors.red.shade700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _ShiftRevenueChip(icon: Icons.payments_rounded, color: Colors.green, label: 'Tiền mặt', amount: currencyFormat.format(meta.cashTotal)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ShiftRevenueChip(icon: Icons.qr_code_rounded, color: Colors.blue, label: 'Chuyển khoản', amount: currencyFormat.format(meta.transferTotal)),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _ShiftInfoRow(
-                  icon: Icons.login,
-                  label: 'Đầu ca',
-                  time: meta.openedAt != null ? DateFormat('dd/MM HH:mm').format(meta.openedAt!) : '—',
-                  cash: meta.openingCash != null ? currencyFormat.format(meta.openingCash) : null,
-                ),
-              ),
-              Expanded(
-                child: _ShiftInfoRow(
-                  icon: Icons.logout,
-                  label: 'Kết ca',
-                  time: meta.closedAt != null
-                      ? DateFormat('dd/MM HH:mm').format(meta.closedAt!)
-                      : (meta.isOpen ? 'Chưa kết' : '—'),
-                  cash: meta.closingCash != null ? currencyFormat.format(meta.closingCash) : null,
-                ),
-              ),
-            ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              children: [
+                Icon(Icons.receipt_long_rounded, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 6),
+                Text('${meta.orderCount} đơn hàng', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                const Spacer(),
+                Text('Tổng: ${currencyFormat.format(meta.totalRevenue)}',
+                    style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.bold, fontSize: 12)),
+              ],
+            ),
           ),
-          const Divider(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _ShiftRevenueChip(icon: Icons.payments, color: Colors.green, label: 'Tiền mặt', amount: currencyFormat.format(meta.cashTotal)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ShiftRevenueChip(icon: Icons.qr_code, color: Colors.blue, label: 'Chuyển khoản', amount: currencyFormat.format(meta.transferTotal)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text('${meta.orderCount} đơn hàng trong ca • Tổng: ${currencyFormat.format(meta.totalRevenue)}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
         ],
       ),
     );
@@ -762,26 +905,44 @@ class _ShiftCard extends StatelessWidget {
 
 class _ShiftInfoRow extends StatelessWidget {
   final IconData icon;
+  final Color iconColor;
   final String label;
   final String time;
   final String? cash;
 
-  const _ShiftInfoRow({required this.icon, required this.label, required this.time, this.cash});
+  const _ShiftInfoRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.time,
+    this.cash,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: Colors.grey.shade500),
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-            Text(time, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            if (cash != null) Text('Quỹ: $cash', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-          ],
+        Container(
+          margin: const EdgeInsets.only(top: 1),
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(color: iconColor.withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(icon, size: 12, color: iconColor),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              const SizedBox(height: 1),
+              Text(time, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              if (cash != null) ...[
+                const SizedBox(height: 1),
+                Text('Quỹ: $cash', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              ],
+            ],
+          ),
         ),
       ],
     );
@@ -799,18 +960,25 @@ class _ShiftRevenueChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: color.withOpacity(0.12), shape: BoxShape.circle),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: TextStyle(fontSize: 10, color: color)),
-                Text(amount, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+                Text(amount,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: color)),
               ],
             ),
           ),
@@ -864,34 +1032,100 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
 
   Future<void> _pickProductToAdd() async {
     if (_loadingProducts) return;
+    String query = '';
+
     final picked = await showDialog<Product>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Chọn món để thêm', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: SizedBox(
-          width: 350,
-          height: 400,
-          child: _availableProducts.isEmpty
-              ? const Center(child: Text('Không có món nào'))
-              : ListView.builder(
-            itemCount: _availableProducts.length,
-            itemBuilder: (_, i) {
-              final p = _availableProducts[i];
-              return ListTile(
-                title: Text(p.name),
-                subtitle: Text(currencyFormat.format(p.price)),
-                onTap: () => Navigator.pop(ctx, p),
-              );
-            },
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('HỦY'))],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final filtered = query.trim().isEmpty
+              ? _availableProducts
+              : _availableProducts
+              .where((p) => p.name.toLowerCase().contains(query.trim().toLowerCase()))
+              .toList();
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380, maxHeight: 480),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 8, 4),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text('Chọn món để thêm', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      autofocus: true,
+                      onChanged: (v) => setSheetState(() => query = v),
+                      decoration: InputDecoration(
+                        hintText: 'Tìm món...',
+                        isDense: true,
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: filtered.isEmpty
+                        ? const Padding(
+                      padding: EdgeInsets.all(28),
+                      child: Text('Không tìm thấy món nào', style: TextStyle(color: Colors.grey)),
+                    )
+                        : ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: filtered.length,
+                      itemBuilder: (_, i) {
+                        final p = filtered[i];
+                        return ListTile(
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: ProductImage(imageUrl: p.imageUrl, fit: BoxFit.cover),
+                            ),
+                          ),
+                          title: Text(p.name, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                          subtitle: Text(currencyFormat.format(p.price), style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                          onTap: () => Navigator.pop(ctx, p),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
-    if (picked != null) {
-      setState(() => _items.add(CartItem(product: picked, quantity: 1)));
-    }
+
+    if (picked == null) return;
+    setState(() {
+      final index = _items.indexWhere((item) => item.product.id == picked.id);
+      if (index >= 0) {
+        _items[index].quantity++;
+      } else {
+        _items.add(CartItem(product: picked, quantity: 1));
+      }
+    });
   }
 
   Future<void> _confirmDeleteOrder() async {
@@ -950,112 +1184,294 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
     }
   }
 
+  Widget _buildHeader(SavedOrder o) {
+    final isCash = o.paymentMethod == 'cash';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 8, 16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            child: Icon(isCash ? Icons.payments_rounded : Icons.qr_code_rounded,
+                color: isCash ? Colors.green : Colors.blue, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  children: [
+                    Text('Đơn #${o.id ?? '---'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                    if (o.isEdited)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.amber.shade200, borderRadius: BorderRadius.circular(20)),
+                        child: Text('Đã sửa',
+                            style: TextStyle(color: Colors.amber.shade900, fontSize: 10.5, fontWeight: FontWeight.bold)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${DateFormat('dd/MM/yyyy HH:mm').format(o.dateTime)} • ${o.tableOrCustomer} • ${isCash ? 'Tiền mặt' : 'Chuyển khoản'}',
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _saving ? null : _confirmDeleteOrder,
+            icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+            tooltip: 'Xóa đơn hàng',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuantityStepper(CartItem item) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: item.quantity > 1 ? () => setState(() => item.quantity -= 1) : null,
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(Icons.remove, size: 16, color: item.quantity > 1 ? Colors.black87 : Colors.grey.shade300),
+            ),
+          ),
+          SizedBox(
+            width: 22,
+            child: Text('${item.quantity}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          ),
+          InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => setState(() => item.quantity += 1),
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(Icons.add, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemRow(int index) {
+    final item = _items[index];
+    final lineTotal = item.product.price * item.quantity;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 42,
+              height: 42,
+              child: ProductImage(imageUrl: item.product.imageUrl, fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.product.name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                const SizedBox(height: 2),
+                Text('${currencyFormat.format(item.product.price)} × ${item.quantity} = ${currencyFormat.format(lineTotal)}',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11.5)),
+                if (item.discountPercent > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text('Giảm ${item.discountPercent.toStringAsFixed(0)}%',
+                        style: const TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.w600)),
+                  ),
+                if (item.note.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text('Ghi chú: ${item.note}',
+                        style: TextStyle(color: Colors.grey.shade500, fontSize: 11, fontStyle: FontStyle.italic)),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          _buildQuantityStepper(item),
+          IconButton(
+            icon: Icon(Icons.delete_outline, size: 19, color: Colors.red.shade300),
+            onPressed: () => setState(() => _items.removeAt(index)),
+            tooltip: 'Xóa món',
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _totalRow(String label, String value, {bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(
+                fontSize: bold ? 15 : 13,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                color: bold ? Colors.black87 : Colors.grey.shade700,
+              )),
+          Text(value,
+              style: TextStyle(
+                fontSize: bold ? 17 : 13.5,
+                fontWeight: FontWeight.bold,
+                color: bold ? Colors.deepOrange : Colors.black87,
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotals(SavedOrder o) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        children: [
+          _totalRow('Tạm tính', currencyFormat.format(_subtotal)),
+          if (o.discountAmount > 0) _totalRow('Giảm giá', '-${currencyFormat.format(o.discountAmount)}'),
+          _totalRow('VAT (${o.vatRate.toStringAsFixed(0)}%)', currencyFormat.format(_vatAmount)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1, color: Colors.orange.shade100),
+          ),
+          _totalRow('TỔNG CỘNG', currencyFormat.format(_total), bold: true),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final o = widget.order;
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(
-        children: [
-          Expanded(child: Text('Đơn #${o.id ?? '---'}', style: const TextStyle(fontWeight: FontWeight.bold))),
-          if (o.isEdited)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(6)),
-              child: Text('Đã sửa', style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold)),
-            ),
-        ],
-      ),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(DateFormat('dd/MM/yyyy HH:mm').format(o.dateTime), style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              Text('${o.tableOrCustomer} • ${o.paymentMethod == 'cash' ? 'Tiền mặt' : 'Chuyển khoản'}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              const Divider(height: 24),
-              ..._items.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final item = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            Text(currencyFormat.format(item.product.price), style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline, size: 20),
-                        onPressed: item.quantity > 1
-                            ? () => setState(() => item.quantity -= 1)
-                            : null,
-                      ),
-                      Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        onPressed: () => setState(() => item.quantity += 1),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                        onPressed: () => setState(() => _items.removeAt(idx)),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              TextButton.icon(
-                onPressed: _pickProductToAdd,
-                icon: const Icon(Icons.add, color: Colors.green),
-                label: const Text('Thêm món', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-              ),
-              const Divider(height: 24),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('Tạm tính'), Text(currencyFormat.format(_subtotal)),
-              ]),
-              const SizedBox(height: 4),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('VAT (${o.vatRate.toStringAsFixed(0)}%)'), Text(currencyFormat.format(_vatAmount)),
-              ]),
-              const SizedBox(height: 8),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('TỔNG CỘNG', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(currencyFormat.format(_total), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 16)),
-              ]),
-            ],
-          ),
-        ),
-      ),
-      actionsAlignment: MainAxisAlignment.spaceBetween,
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : _confirmDeleteOrder,
-          child: const Text('XÓA ĐƠN', style: TextStyle(color: Colors.red)),
-        ),
-        Row(
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 460, maxHeight: MediaQuery.of(context).size.height * 0.85),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('HỦY')),
-            const SizedBox(width: 4),
-            ElevatedButton(
-              onPressed: _saving ? null : _save,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              child: _saving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('LƯU', style: TextStyle(color: Colors.white)),
+            _buildHeader(o),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('DANH SÁCH MÓN',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 11.5, letterSpacing: 0.3)),
+                        Text('${_items.length} món', style: TextStyle(color: Colors.grey.shade500, fontSize: 11.5)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...List.generate(_items.length, (i) => _buildItemRow(i)),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _loadingProducts ? null : _pickProductToAdd,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.green.shade200, width: 1.4),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _loadingProducts
+                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.add_circle_outline, color: Colors.green, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                _loadingProducts ? 'Đang tải món...' : 'Thêm món',
+                                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTotals(o),
+                    const SizedBox(height: 4),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade100))),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: OutlinedButton(
+                        onPressed: _saving ? null : () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('HỦY', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        onPressed: _saving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: _saving
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                            : const Icon(Icons.check, color: Colors.white, size: 18),
+                        label: const Text('LƯU THAY ĐỔI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }

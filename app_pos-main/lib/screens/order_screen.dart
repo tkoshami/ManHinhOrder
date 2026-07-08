@@ -336,6 +336,8 @@ class _OrderScreenState extends State<OrderScreen> {
         return 'Quản trị viên';
       case UserRole.cashier:
         return 'Thu ngân';
+      case UserRole.shiftLeader:
+        return 'Trưởng ca';
       case UserRole.user:
         return 'Nhân viên';
     }
@@ -1983,7 +1985,7 @@ class _OrderScreenState extends State<OrderScreen> {
         String initNote = '',
         String initDiscountReason = '',
       }) {
-    final bool canEditDiscount = widget.user.role == UserRole.admin || widget.user.role == UserRole.cashier;
+    final bool canEditDiscount = widget.user.role == UserRole.admin || widget.user.can('discounts.apply');
     final unitPrice = variant?.price ?? product.price;
     final discountController = TextEditingController(
       text: (canEditDiscount ? initDiscount : 0) == 0
@@ -2315,7 +2317,7 @@ class _OrderScreenState extends State<OrderScreen> {
   void _showEditCartDialog(BuildContext context, int cartIndex) {
     if (cartIndex < 0 || cartIndex >= _cart.length) return;
     final item = _cart[cartIndex];
-    final bool canEditDiscount = widget.user.role == UserRole.admin || widget.user.role == UserRole.cashier;
+    final bool canEditDiscount = widget.user.role == UserRole.admin || widget.user.can('discounts.apply');
     final discountController = TextEditingController(
       text: (canEditDiscount ? item.discountPercent : 0) == 0
           ? '0'
@@ -3767,8 +3769,9 @@ class _OrderScreenState extends State<OrderScreen> {
   Widget _buildCartPanel() {
     final bool isAdmin = widget.user.role == UserRole.admin;
     final bool isCashier = widget.user.role == UserRole.cashier;
+    final bool isShiftLeader = widget.user.role == UserRole.shiftLeader;
     final bool isUser = widget.user.role == UserRole.user;
-    final bool canCheckout = isAdmin || isCashier;
+    final bool canCheckout = isAdmin || isCashier || isShiftLeader;
     final bool isMobile =
         _sheetState != null || MediaQuery.of(context).size.width < 600;
     final bool isHandheldPos = _isHandheldPos(context);

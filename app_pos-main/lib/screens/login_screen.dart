@@ -32,14 +32,23 @@ class _LoginScreenState extends State<LoginScreen> {
       final roleStr = profile?['role'] ?? 'staff';
       final fullName =
           profile?['full_name'] ??
-          session.user!.userMetadata?['full_name'] ??
-          session.user!.email!.split('@')[0];
+              session.user!.userMetadata?['full_name'] ??
+              session.user!.email!.split('@')[0];
+      final roleId = profile?['role_id'] == null ? null : int.tryParse(profile!['role_id'].toString());
+      final roleName = (profile?['roles'] is Map ? profile!['roles']['name'] : null)?.toString() ?? '';
+      final permissions = await SupabaseService.getEffectivePermissions(
+        roleId: roleId,
+        userId: session.user!.id,
+      );
 
       final user = UserAccount(
         id: session.user!.id,
         name: fullName,
         email: session.user!.email!,
         role: _mapRole(roleStr),
+        roleId: roleId,
+        roleName: roleName,
+        permissions: permissions,
       );
 
       if (mounted) {
@@ -86,14 +95,23 @@ class _LoginScreenState extends State<LoginScreen> {
         final roleStr = profile?['role'] ?? 'staff';
         final fullName =
             profile?['full_name'] ??
-            response.user!.userMetadata?['full_name'] ??
-            response.user!.email!.split('@')[0];
+                response.user!.userMetadata?['full_name'] ??
+                response.user!.email!.split('@')[0];
+        final roleId = profile?['role_id'] == null ? null : int.tryParse(profile!['role_id'].toString());
+        final roleName = (profile?['roles'] is Map ? profile!['roles']['name'] : null)?.toString() ?? '';
+        final permissions = await SupabaseService.getEffectivePermissions(
+          roleId: roleId,
+          userId: response.user!.id,
+        );
 
         final user = UserAccount(
           id: response.user!.id,
           name: fullName,
           email: response.user!.email!,
           role: _mapRole(roleStr),
+          roleId: roleId,
+          roleName: roleName,
+          permissions: permissions,
         );
 
         Navigator.pushReplacement(
@@ -133,12 +151,12 @@ class _LoginScreenState extends State<LoginScreen> {
     switch (roleStr.toLowerCase()) {
       case 'admin':
         return UserRole.admin;
+      case 'shift_leader':
+        return UserRole.shiftLeader;
       case 'cashier':
         return UserRole.cashier;
-      case 'user':
-        return UserRole.user;
       default:
-        return UserRole.user;
+        return UserRole.cashier;
     }
   }
 

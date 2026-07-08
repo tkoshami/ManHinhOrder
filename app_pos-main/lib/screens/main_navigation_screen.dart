@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pos_fnb/screens/order_screen.dart';
 import 'package:pos_fnb/screens/history_screen.dart';
 import 'package:pos_fnb/screens/stats_screen.dart';
-import 'package:pos_fnb/screens/feedback_screen.dart';
+import 'package:pos_fnb/screens/inventory_screen.dart';
 import 'package:pos_fnb/models/app_models.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -19,6 +19,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isAdmin = widget.currentUser.role == UserRole.admin;
+    final bool isShiftLeader = widget.currentUser.role == UserRole.shiftLeader;
     final bool isUser = widget.currentUser.role == UserRole.user;
 
     final List<Widget> screens = [OrderScreen(user: widget.currentUser)];
@@ -34,13 +35,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       screens.add(const HistoryScreen());
       navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'));
 
-      if (isAdmin) {
+      if (isAdmin || isShiftLeader) {
         screens.add(const StatsScreen());
         navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Thống kê'));
       }
 
-      screens.add(FeedbackScreen(currentUser: widget.currentUser));
-      navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.feedback), label: 'Phản hồi'));
+      if (isAdmin || isShiftLeader) {
+        screens.add(InventoryScreen(currentUser: widget.currentUser));
+        navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.inventory_2_rounded), label: 'Kho hàng'));
+      }
     }
 
     // Nếu chỉ có 1 item (User), không cần hiện BottomNavigationBar

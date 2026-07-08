@@ -587,6 +587,7 @@ class SupabaseService {
           'p_vat_amount': order.vatAmount,
           'p_total_amount': order.totalAmount,
           'p_payment_method': order.paymentMethod,
+          if (order.shiftId != null) 'p_shift_id': order.shiftId,
           ..._paidOrderMetadataParams(order),
         },
         enhancedKeys,
@@ -607,9 +608,15 @@ class SupabaseService {
     final parsedId = int.tryParse(order.id ?? '');
     final orderId =
     parsedId != null && parsedId < 1000000000000 ? parsedId : null;
+
+    // Lấy shift_id hiện tại
+    final user = _supabase.auth.currentUser;
+    final shiftId = user != null ? await getCurrentShiftId(user.id) : null;
+
     try {
       final response = await _supabase.rpc('save_pending_pos_order', params: {
         'p_order_id': orderId,
+        if (shiftId != null) 'p_shift_id': shiftId,
         'p_items': order.items
             .map((item) => {
           'product_id': item.product.id,
@@ -833,7 +840,7 @@ class SupabaseService {
     try {
       final response = await _supabase
           .from('profiles')
-          .select('role, full_name')
+          .select('role, full_name, role_id, roles(name)')
           .eq('id', userId)
           .single();
       return response;
@@ -863,7 +870,7 @@ class SupabaseService {
     try {
       final profiles = await _supabase
           .from('profiles')
-          .select('id, full_name, role, email, created_at')
+          .select('id, full_name, role, email, created_at, role_id, roles(name)')
           .order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(profiles);
     } catch (e) {
@@ -942,6 +949,283 @@ class SupabaseService {
     } catch (e) {
       print('deleteUser error: $e');
       return false;
+    }
+  }
+
+  // ─── PHÂN QUYỀN (ROLES & PERMISSIONS) ─────────────────
+  // Hệ thống bổ sung, đứng CẠNH cột `profiles.role` (text) hiện tại —
+  // không thay thế. `profiles.role` vẫn quyết định các luồng lớn
+  // (admin/thu ngân/khách). Hệ thống này cho phép admin tự bật/tắt từng
+  // quyền nhỏ theo VAI TRÒ (bảng `roles`) hoặc ghi đè riêng cho TỪNG
+  // TÀI KHOẢN, không cần sửa code mỗi khi cần thay đổi quyền hạn.
+
+  /// Danh sách tất cả vai trò hiện có (Admin, Thu ngân, Phục vụ, Trưởng ca...).
+  static Future<List<Map<String, dynamic>>> getRoles() async {
+    try {
+      final rows = await _supabase.from('roles').select('id, name, description').order('id');
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      print('getRoles error: $e');
+      return [];
+    }
+  }
+
+  /// Danh sách tất cả "quyền" cố định trong code, có nhóm theo category.
+  static Future<List<Map<String, dynamic>>> getPermissions() async {
+    try {
+      final rows = await _supabase
+          .from('permissions')
+          .select('key, label, description, category, display_order')
+          .order('display_order');
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      print('getPermissions error: $e');
+      return [];
+    }
+  }
+
+  /// Các quyền đang được BẬT mặc định cho 1 vai trò.
+  static Future<Set<String>> getRolePermissionKeys(int roleId) async {
+    try {
+      final rows = await _supabase
+          .from('role_permissions')
+          .select('permission_key, allowed')
+          .eq('role_id', roleId);
+      return List<Map<String, dynamic>>.from(rows)
+          .where((r) => r['allowed'] == true)
+          .map((r) => r['permission_key'].toString())
+          .toSet();
+    } catch (e) {
+      print('getRolePermissionKeys error: $e');
+      return {};
+    }
+  }
+
+  /// Bật/tắt 1 quyền cho 1 vai trò (dùng ở màn "Phân quyền" của admin).
+  static Future<bool> setRolePermission({
+    required int roleId,
+    required String permissionKey,
+    required bool allowed,
+  }) async {
+    try {
+      await _supabase.from('role_permissions').upsert({
+        'role_id': roleId,
+        'permission_key': permissionKey,
+        'allowed': allowed,
+      });
+      return true;
+    } catch (e) {
+      print('setRolePermission error: $e');
+      return false;
+    }
+  }
+
+  /// Các quyền đang được GHI ĐÈ riêng cho 1 tài khoản cụ thể (bất kể vai
+  /// trò). Map key -> true (luôn cho phép) / false (luôn từ chối).
+  static Future<Map<String, bool>> getUserPermissionOverrides(String userId) async {
+    try {
+      final rows = await _supabase
+          .from('user_permissions')
+          .select('permission_key, allowed')
+          .eq('user_id', userId);
+      return {
+        for (final r in List<Map<String, dynamic>>.from(rows))
+          r['permission_key'].toString(): r['allowed'] == true,
+      };
+    } catch (e) {
+      print('getUserPermissionOverrides error: $e');
+      return {};
+    }
+  }
+
+  /// Ghi đè 1 quyền riêng cho 1 tài khoản (ưu tiên cao hơn quyền theo vai trò).
+  static Future<bool> setUserPermissionOverride({
+    required String userId,
+    required String permissionKey,
+    required bool allowed,
+  }) async {
+    try {
+      await _supabase.from('user_permissions').upsert({
+        'user_id': userId,
+        'permission_key': permissionKey,
+        'allowed': allowed,
+      });
+      return true;
+    } catch (e) {
+      print('setUserPermissionOverride error: $e');
+      return false;
+    }
+  }
+
+  /// Xóa ghi đè riêng, quay về dùng quyền mặc định theo vai trò.
+  static Future<bool> clearUserPermissionOverride({
+    required String userId,
+    required String permissionKey,
+  }) async {
+    try {
+      await _supabase
+          .from('user_permissions')
+          .delete()
+          .eq('user_id', userId)
+          .eq('permission_key', permissionKey);
+      return true;
+    } catch (e) {
+      print('clearUserPermissionOverride error: $e');
+      return false;
+    }
+  }
+
+  /// Tính quyền HIỆU LỰC cuối cùng của 1 tài khoản: bắt đầu từ quyền mặc
+  /// định theo vai trò, sau đó áp ghi đè riêng (nếu có) — gọi lúc đăng
+  /// nhập để gắn sẵn vào UserAccount, tránh phải truy vấn lại nhiều lần.
+  static Future<Set<String>> getEffectivePermissions({
+    int? roleId,
+    required String userId,
+  }) async {
+    final effective = <String>{};
+    if (roleId != null) {
+      effective.addAll(await getRolePermissionKeys(roleId));
+    }
+    final overrides = await getUserPermissionOverrides(userId);
+    overrides.forEach((key, allowed) {
+      if (allowed) {
+        effective.add(key);
+      } else {
+        effective.remove(key);
+      }
+    });
+    return effective;
+  }
+
+  // ─── KHO HÀNG (INVENTORY) ──────────────────────────────
+  // Quản lý tồn kho cho cả nguyên liệu và sản phẩm đang bán, độc lập với
+  // bảng `products` (chỉ liên kết qua `linked_product_id` khi cần).
+
+  static Future<List<InventoryItem>> getInventoryItems() async {
+    try {
+      final rows = await _supabase
+          .from('inventory_items')
+          .select()
+          .order('name', ascending: true);
+      return List<Map<String, dynamic>>.from(rows)
+          .map((r) => InventoryItem.fromJson(r))
+          .toList();
+    } catch (e) {
+      print('getInventoryItems error: $e');
+      return [];
+    }
+  }
+
+  static Future<InventoryItem?> createInventoryItem({
+    required String name,
+    required InventoryItemType type,
+    required String unit,
+    double initialStock = 0,
+    double lowStockThreshold = 0,
+    int? linkedProductId,
+    String? note,
+  }) async {
+    try {
+      final row = await _supabase
+          .from('inventory_items')
+          .insert({
+        'name': name,
+        'type': InventoryItem.typeToDatabase(type),
+        'unit': unit,
+        'current_stock': initialStock,
+        'low_stock_threshold': lowStockThreshold,
+        if (linkedProductId != null) 'linked_product_id': linkedProductId,
+        if (note != null && note.isNotEmpty) 'note': note,
+      })
+          .select()
+          .single();
+      return InventoryItem.fromJson(row);
+    } catch (e) {
+      print('createInventoryItem error: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> updateInventoryItem({
+    required int id,
+    required String name,
+    required String unit,
+    required double lowStockThreshold,
+    int? linkedProductId,
+    String? note,
+  }) async {
+    try {
+      await _supabase.from('inventory_items').update({
+        'name': name,
+        'unit': unit,
+        'low_stock_threshold': lowStockThreshold,
+        'linked_product_id': linkedProductId,
+        'note': note,
+      }).eq('id', id);
+      return true;
+    } catch (e) {
+      print('updateInventoryItem error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> deleteInventoryItem(int id) async {
+    try {
+      await _supabase.from('inventory_items').delete().eq('id', id);
+      return true;
+    } catch (e) {
+      print('deleteInventoryItem error: $e');
+      return false;
+    }
+  }
+
+  /// Nhập / xuất / điều chỉnh (kiểm kê) tồn kho cho 1 mặt hàng. Gọi hàm
+  /// Postgres `adjust_inventory_stock` để cập nhật tồn kho VÀ ghi lịch sử
+  /// trong cùng 1 giao dịch, tránh lệch số nếu có lỗi giữa chừng.
+  static Future<bool> adjustInventoryStock({
+    required int itemId,
+    required InventoryTransactionType type,
+    required double quantity,
+    String? note,
+    String? userId,
+    String? userName,
+  }) async {
+    try {
+      await _supabase.rpc('adjust_inventory_stock', params: {
+        'p_item_id': itemId,
+        'p_type': InventoryTransaction.typeToDatabase(type),
+        'p_quantity': quantity,
+        if (note != null && note.isNotEmpty) 'p_note': note,
+        if (userId != null) 'p_created_by': userId,
+        if (userName != null) 'p_created_by_name': userName,
+      });
+      return true;
+    } catch (e) {
+      print('adjustInventoryStock error: $e');
+      return false;
+    }
+  }
+
+  /// Lịch sử nhập/xuất/điều chỉnh, mới nhất trước. Có thể lọc theo 1 mặt
+  /// hàng cụ thể (dùng ở màn chi tiết) hoặc lấy tất cả (tab "Lịch sử").
+  static Future<List<InventoryTransaction>> getInventoryTransactions({
+    int? itemId,
+    int limit = 100,
+  }) async {
+    try {
+      var query = _supabase
+          .from('inventory_transactions')
+          .select('*, inventory_items(name, unit)');
+      if (itemId != null) {
+        query = query.eq('item_id', itemId);
+      }
+      final rows = await query.order('created_at', ascending: false).limit(limit);
+      return List<Map<String, dynamic>>.from(rows)
+          .map((r) => InventoryTransaction.fromJson(r))
+          .toList();
+    } catch (e) {
+      print('getInventoryTransactions error: $e');
+      return [];
     }
   }
 }

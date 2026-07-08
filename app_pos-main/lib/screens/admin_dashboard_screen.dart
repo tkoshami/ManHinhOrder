@@ -4,6 +4,7 @@ import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/screens/admin_products_screen.dart';
 import 'package:pos_fnb/screens/admin_reports_screen.dart';
 import 'package:pos_fnb/screens/admin_users_screen.dart';
+import 'package:pos_fnb/screens/permission_management_screen.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
 
 /// Trang trung tâm quản trị (chỉ dành cho role = admin).
@@ -207,6 +208,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const AdminReportsScreen()),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _AdminMenuCard(
+                icon: Icons.admin_panel_settings,
+                color: Colors.indigo,
+                title: 'Phân quyền',
+                subtitle: 'Bật/tắt chức năng theo vai trò hoặc riêng từng tài khoản',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PermissionManagementScreen()),
                 ),
               ),
             ],

@@ -182,6 +182,8 @@ class ProfileScreen extends StatelessWidget {
     switch (role) {
       case UserRole.admin:
         return Colors.purple;
+      case UserRole.shiftLeader:
+        return Colors.indigo;
       case UserRole.cashier:
         return Colors.orange;
       case UserRole.user:
@@ -193,6 +195,8 @@ class ProfileScreen extends StatelessWidget {
     switch (role) {
       case UserRole.admin:
         return 'Quản trị viên';
+      case UserRole.shiftLeader:
+        return 'Trưởng ca';
       case UserRole.cashier:
         return 'Thu ngân';
       case UserRole.user:
