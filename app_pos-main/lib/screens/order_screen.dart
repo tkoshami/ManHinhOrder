@@ -1112,7 +1112,7 @@ class _OrderScreenState extends State<OrderScreen> {
                                 (selectedMethod == 'Tiền mặt' &&
                                     receivedAmount < order.totalAmount)
                                     ? null
-                                    : () => _finishPayment(
+                                    : () => _confirmAndFinishPayment(
                                   order,
                                   selectedMethod,
                                   receivedAmount:
@@ -1169,6 +1169,109 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
 
+
+  /// Kiểm tra tồn kho theo công thức chế biến trước khi thanh toán. Nếu
+  /// thiếu nguyên liệu, CẢNH BÁO nhưng không chặn cứng — thu ngân có thể
+  /// bấm "Vẫn thanh toán" nếu tồn kho thực tế khác với ghi nhận trên hệ
+  /// thống (giống cách KiotViet/Sapo xử lý, tránh làm gián đoạn bán hàng).
+  Future<void> _confirmAndFinishPayment(
+      SavedOrder order,
+      String method, {
+        double? receivedAmount,
+        VoidCallback? onSuccess,
+      }) async {
+    List<Map<String, dynamic>> shortages = [];
+    try {
+      shortages = await SupabaseService.checkRecipeStock(order.items);
+    } catch (_) {
+      // Bỏ qua nếu không kiểm tra được (VD lỗi mạng) — không vì lỗi phụ
+      // này mà chặn luôn việc thanh toán.
+    }
+    if (shortages.isNotEmpty) {
+      if (!mounted) return;
+      final proceed = await _showStockShortageDialog(shortages);
+      if (proceed != true) return;
+    }
+    _finishPayment(order, method, receivedAmount: receivedAmount, onSuccess: onSuccess);
+  }
+
+  String _formatStockNumber(num? value) {
+    if (value == null) return '0';
+    final d = value.toDouble();
+    return d == d.roundToDouble() ? d.round().toString() : d.toString();
+  }
+
+  Future<bool?> _showStockShortageDialog(List<Map<String, dynamic>> shortages) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Có thể thiếu nguyên liệu', style: TextStyle(fontSize: 16))),
+          ],
+        ),
+        content: SizedBox(
+          width: _responsiveDialogWidth(context, 420),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Kho hiện không đủ các nguyên liệu sau cho đơn này:',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                const SizedBox(height: 12),
+                ...shortages.map((s) {
+                  final name = s['name']?.toString() ?? '';
+                  final unit = s['unit']?.toString() ?? '';
+                  final required = _formatStockNumber(s['required'] as num?);
+                  final available = _formatStockNumber(s['available'] as num?);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        ),
+                        Text('Cần $required$unit  •  Còn $available$unit',
+                            style: TextStyle(fontSize: 12, color: Colors.red.shade600, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 12),
+                Text(
+                  'Bạn vẫn có thể tiếp tục thanh toán nếu tồn kho thực tế khác với hệ thống.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('HỦY', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade600,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('VẪN THANH TOÁN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _finishPayment(
       SavedOrder order,

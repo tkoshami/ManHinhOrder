@@ -1228,4 +1228,79 @@ class SupabaseService {
       return [];
     }
   }
+
+  // ─── CÔNG THỨC CHẾ BIẾN (PRODUCT RECIPES / BOM) ────────
+  // Liên kết 1 sản phẩm bán ra với các mặt hàng trong `inventory_items` cần
+  // tiêu hao (VD: 1 ổ "Bánh mì truyền thống 40k" cần 1 da bao, 1 giò thủ,
+  // 35g pate...). Khi đơn thanh toán xong, trigger `deduct_inventory_on_order_paid`
+  // ở Supabase tự động trừ đúng số lượng này khỏi kho — Flutter không cần
+  // tự tính hay gọi thêm gì cả, chỉ cần quản lý danh sách công thức ở đây.
+
+  /// Công thức hiện tại của 1 sản phẩm: danh sách (mặt hàng kho, số lượng
+  /// cần cho 1 đơn vị sản phẩm bán ra).
+  static Future<List<Map<String, dynamic>>> getProductRecipe(int productId) async {
+    try {
+      final rows = await _supabase
+          .from('product_recipes')
+          .select('id, quantity, inventory_items(id, name, unit)')
+          .eq('product_id', productId);
+      return List<Map<String, dynamic>>.from(rows).map((r) {
+        final item = r['inventory_items'];
+        return {
+          'recipe_id': r['id'],
+          'inventory_item_id': item is Map ? item['id'] : null,
+          'name': item is Map ? item['name'] : null,
+          'unit': item is Map ? item['unit'] : null,
+          'quantity': (r['quantity'] as num?)?.toDouble() ?? 0,
+        };
+      }).toList();
+    } catch (e) {
+      print('getProductRecipe error: $e');
+      return [];
+    }
+  }
+
+  /// Lưu toàn bộ công thức của 1 sản phẩm: xóa hết dòng cũ rồi thêm lại
+  /// theo danh sách hiện tại trên form — đơn giản và an toàn cho quy mô
+  /// vài nguyên liệu mỗi món, tránh phải so khớp từng dòng thêm/bớt/sửa.
+  static Future<bool> saveProductRecipe({
+    required int productId,
+    required List<Map<String, dynamic>> items, // [{inventory_item_id, quantity}]
+  }) async {
+    try {
+      await _supabase.from('product_recipes').delete().eq('product_id', productId);
+      if (items.isNotEmpty) {
+        await _supabase.from('product_recipes').insert(
+          items
+              .map((e) => {
+            'product_id': productId,
+            'inventory_item_id': e['inventory_item_id'],
+            'quantity': e['quantity'],
+          })
+              .toList(),
+        );
+      }
+      return true;
+    } catch (e) {
+      print('saveProductRecipe error: $e');
+      return false;
+    }
+  }
+
+  /// Kiểm tra tồn kho theo công thức chế biến TRƯỚC khi thanh toán, dựa
+  /// trên tồn kho THỰC TẾ ngay tại thời điểm gọi (tính ở database để tránh
+  /// đọc số liệu cũ). Trả về danh sách các nguyên liệu bị thiếu (rỗng nếu
+  /// đủ hàng). Gọi RPC `check_recipe_stock` (xem file SQL đã cấp trước đó).
+  static Future<List<Map<String, dynamic>>> checkRecipeStock(List<CartItem> items) async {
+    try {
+      final payload = items
+          .map((i) => {'product_id': i.product.id, 'quantity': i.quantity})
+          .toList();
+      final rows = await _supabase.rpc('check_recipe_stock', params: {'p_items': payload});
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      print('checkRecipeStock error: $e');
+      return [];
+    }
+  }
 }

@@ -19,6 +19,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫', decimalDigits: 0);
   List<Product> _products = [];
   List<Category> _categories = [];
+  List<InventoryItem> _inventoryItems = [];
   bool _loading = true;
   String _search = '';
   int? _categoryFilter;
@@ -34,11 +35,13 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
     final results = await Future.wait([
       SupabaseService.getAllProductsForAdmin(),
       SupabaseService.getProductCategories(),
+      SupabaseService.getInventoryItems(),
     ]);
     if (!mounted) return;
     setState(() {
       _products = results[0] as List<Product>;
       _categories = results[1] as List<Category>;
+      _inventoryItems = results[2] as List<InventoryItem>;
       _loading = false;
     });
   }
@@ -118,7 +121,182 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
       ),
     );
   }
+  Future<void> _openRecipeDialog(Product product) async {
+    bool loading = true;
+    bool saving = false;
+    final rows = <_RecipeRow>[];
 
+    // Load công thức hiện tại của món
+    Future<void> loadRecipe(void Function(void Function()) setDialogState) async {
+      final recipe = await SupabaseService.getProductRecipe(product.id);
+      rows.clear();
+      for (final r in recipe) {
+        final matched = _inventoryItems.where((i) => i.id == r['inventory_item_id']).toList();
+        rows.add(_RecipeRow(
+          item: matched.isNotEmpty ? matched.first : null,
+          quantityCtl: TextEditingController(
+            text: (r['quantity'] as num).toStringAsFixed(
+              (r['quantity'] as num) == (r['quantity'] as num).roundToDouble() ? 0 : 3,
+            ),
+          ),
+        ));
+      }
+      loading = false;
+      setDialogState(() {});
+    }
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          if (loading && rows.isEmpty) {
+            loadRecipe(setDialogState);
+          }
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.blender_outlined, color: Colors.indigo),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Công thức: ${product.name}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 420,
+              child: loading
+                  ? const SizedBox(
+                height: 120,
+                child: Center(child: CircularProgressIndicator()),
+              )
+                  : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (rows.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Text('Chưa có nguyên liệu nào cho món này',
+                            style: TextStyle(color: Colors.grey.shade500)),
+                      ),
+                    ...rows.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final row = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              flex: 6,
+                              child: DropdownButtonFormField<InventoryItem>(
+                                value: row.item,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Nguyên liệu',
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                ),
+                                items: _inventoryItems
+                                    .map((it) => DropdownMenuItem(
+                                  value: it,
+                                  child: Text(it.name, overflow: TextOverflow.ellipsis),
+                                ))
+                                    .toList(),
+                                onChanged: (v) => setDialogState(() => row.item = v),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 4,
+                              child: TextField(
+                                controller: row.quantityCtl,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  labelText: 'SL / phần',
+                                  suffixText: row.item?.unit ?? '',
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18, color: Colors.red),
+                              onPressed: () => setDialogState(() => rows.removeAt(i)),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _inventoryItems.isEmpty
+                            ? null
+                            : () => setDialogState(() {
+                          rows.add(_RecipeRow(quantityCtl: TextEditingController()));
+                        }),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Thêm nguyên liệu'),
+                      ),
+                    ),
+                    if (_inventoryItems.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Chưa có mặt hàng nào trong Kho hàng. Vào Kho hàng để thêm nguyên liệu trước.',
+                          style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: saving || loading
+                    ? null
+                    : () async {
+                  // Chỉ lưu các dòng đã chọn nguyên liệu + số lượng hợp lệ
+                  final items = <Map<String, dynamic>>[];
+                  for (final row in rows) {
+                    final qty = double.tryParse(row.quantityCtl.text.replaceAll(',', '.'));
+                    if (row.item != null && qty != null && qty > 0) {
+                      items.add({'inventory_item_id': row.item!.id, 'quantity': qty});
+                    }
+                  }
+                  setDialogState(() => saving = true);
+                  final ok = await SupabaseService.saveProductRecipe(
+                    productId: product.id,
+                    items: items,
+                  );
+                  if (!ctx.mounted) return;
+                  Navigator.pop(ctx);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(ok ? 'Đã lưu công thức chế biến' : 'Lỗi khi lưu, vui lòng thử lại'),
+                      backgroundColor: ok ? Colors.green : Colors.red,
+                    ));
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                child: saving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Lưu công thức'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
   Future<void> _openProductDialog({Product? existing}) async {
     final nameCtl = TextEditingController(text: existing?.name ?? '');
     final priceCtl = TextEditingController(
@@ -526,11 +704,13 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                                     icon: const Icon(Icons.more_vert, size: 18),
                                     onSelected: (v) {
                                       if (v == 'edit') _openProductDialog(existing: p);
+                                      if (v == 'recipe') _openRecipeDialog(p);
                                       if (v == 'delete') _deleteProduct(p);
                                       if (v == 'restore') _restoreProduct(p);
                                     },
                                     itemBuilder: (context) => [
                                       const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Sửa'))),
+                                      const PopupMenuItem(value: 'recipe', child: ListTile(leading: Icon(Icons.blender_outlined, color: Colors.indigo), title: Text('Công thức chế biến'))),
                                       if (p.isAvailable)
                                         const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline, color: Colors.red), title: Text('Xóa', style: TextStyle(color: Colors.red))))
                                       else
@@ -594,6 +774,13 @@ class _VariantRow {
   final TextEditingController priceCtl;
 
   _VariantRow({required this.nameCtl, required this.priceCtl});
+}
+
+class _RecipeRow {
+  InventoryItem? item;
+  final TextEditingController quantityCtl;
+
+  _RecipeRow({this.item, required this.quantityCtl});
 }
 
 class _CategoryFilterChip extends StatelessWidget {
