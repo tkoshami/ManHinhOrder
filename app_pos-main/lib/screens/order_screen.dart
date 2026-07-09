@@ -3148,31 +3148,34 @@ class _OrderScreenState extends State<OrderScreen> {
                         ),
                       ),
                     ),
-                    ElevatedButton.icon(
-                      onPressed: () => _cancelOrder(order),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                    if (widget.user.role == UserRole.admin ||
+                        widget.user.role == UserRole.shiftLeader ||
+                        widget.user.can('orders.cancel'))
+                      ElevatedButton.icon(
+                        onPressed: () => _cancelOrder(order),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                        icon: const Icon(
+                          Icons.cancel,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          'Hủy đơn',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                      icon: const Icon(
-                        Icons.cancel,
-                        size: 18,
-                      ),
-                      label: const Text(
-                        'Hủy đơn',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -3623,14 +3626,16 @@ class _OrderScreenState extends State<OrderScreen> {
                   ],
                 ),
               ),
-              const PopupMenuDivider(height: 1),
-              const PopupMenuItem(
-                value: 'settings',
-                child: ListTile(
-                  leading: Icon(Icons.settings),
-                  title: Text('Cài đặt POS'),
+              if (!isUser) ...[
+                const PopupMenuDivider(height: 1),
+                const PopupMenuItem(
+                  value: 'settings',
+                  child: ListTile(
+                    leading: Icon(Icons.settings),
+                    title: Text('Cài đặt POS'),
+                  ),
                 ),
-              ),
+              ],
               if (!isUser) ...[
                 const PopupMenuDivider(height: 1),
                 const PopupMenuItem(
@@ -3678,7 +3683,7 @@ class _OrderScreenState extends State<OrderScreen> {
                   ],
                 ),
               ),
-              if (isAdmin) ...[
+              if (isAdmin || widget.user.can('system.admin_access')) ...[
                 const PopupMenuDivider(height: 1),
                 PopupMenuItem(
                   value: 'admin_dashboard',
@@ -3687,6 +3692,8 @@ class _OrderScreenState extends State<OrderScreen> {
                     title: const Text('Quản trị hệ thống'),
                   ),
                 ),
+              ],
+              if (isAdmin || widget.user.can('qr.generate')) ...[
                 PopupMenuItem(
                   value: 'qr_gen',
                   child: ListTile(
@@ -3874,7 +3881,8 @@ class _OrderScreenState extends State<OrderScreen> {
     final bool isCashier = widget.user.role == UserRole.cashier;
     final bool isShiftLeader = widget.user.role == UserRole.shiftLeader;
     final bool isUser = widget.user.role == UserRole.user;
-    final bool canCheckout = isAdmin || isCashier || isShiftLeader;
+    final bool canCheckout = isAdmin || isCashier || isShiftLeader || widget.user.can('orders.checkout');
+    final bool canCancelOrder = isAdmin || isShiftLeader || widget.user.can('orders.cancel');
     final bool isMobile =
         _sheetState != null || MediaQuery.of(context).size.width < 600;
     final bool isHandheldPos = _isHandheldPos(context);

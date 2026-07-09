@@ -20,14 +20,22 @@ dependencies:
 
   # Image
   image_picker: ^1.1.2
-  path_provider: ^2.1.2
+  path_provider: ^2.1.5
 
   # Network
   http: ^1.2.1
 
   # Storage
+  # Storage
   shared_preferences: ^2.2.3
 
+  # Export báo cáo
+  excel: ^4.0.6
+  pdf: ^3.10.8
+  printing: ^5.12.0
+  share_plus: ^7.2.1
+
+  # QR Code
   # QR Code
   qr_flutter: ^4.1.0
 

@@ -450,6 +450,7 @@ class InventoryItem {
   final int? linkedProductId;
   final String? note;
   final DateTime? updatedAt;
+  final double costPrice;
 
   InventoryItem({
     required this.id,
@@ -461,9 +462,11 @@ class InventoryItem {
     this.linkedProductId,
     this.note,
     this.updatedAt,
+    this.costPrice = 0,
   });
 
   bool get isLowStock => currentStock <= lowStockThreshold;
+  double get totalValue => currentStock * costPrice;
 
   InventoryItem copyWith({
     int? id,
@@ -475,6 +478,7 @@ class InventoryItem {
     int? linkedProductId,
     String? note,
     DateTime? updatedAt,
+    double? costPrice,
   }) {
     return InventoryItem(
       id: id ?? this.id,
@@ -486,6 +490,7 @@ class InventoryItem {
       linkedProductId: linkedProductId ?? this.linkedProductId,
       note: note ?? this.note,
       updatedAt: updatedAt ?? this.updatedAt,
+      costPrice: costPrice ?? this.costPrice,
     );
   }
 
@@ -523,6 +528,7 @@ class InventoryItem {
       updatedAt: json['updated_at'] == null
           ? null
           : DateTime.tryParse(json['updated_at'].toString())?.toLocal(),
+      costPrice: (json['cost_price'] as num?)?.toDouble() ?? 0,
     );
   }
 }

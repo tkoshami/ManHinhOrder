@@ -35,12 +35,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       screens.add(const HistoryScreen());
       navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'));
 
-      if (isAdmin || isShiftLeader) {
+      if (isAdmin || isShiftLeader || widget.currentUser.can('reports.view')) {
         screens.add(const StatsScreen());
         navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Thống kê'));
       }
 
-      if (isAdmin || isShiftLeader) {
+      if (isAdmin || isShiftLeader || widget.currentUser.can('inventory.view')) {
         screens.add(InventoryScreen(currentUser: widget.currentUser));
         navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.inventory_2_rounded), label: 'Kho hàng'));
       }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
+import 'package:intl/intl.dart';
+import 'package:pos_fnb/services/report_export_service.dart';
 
 /// Màn hình "Kho hàng": theo dõi tồn kho nguyên liệu + sản phẩm, nhập/xuất
 /// kho, xem lịch sử giao dịch và cảnh báo khi sắp hết hàng.
@@ -23,6 +25,14 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
   List<InventoryTransaction> _transactions = [];
   String _search = '';
   _StockFilter _filter = _StockFilter.all;
+
+  /// Admin/Trưởng ca luôn có đủ quyền quản lý kho. Các vai trò khác chỉ có
+  /// quyền nếu được cấp riêng qua màn "Phân quyền".
+  bool get _canManage =>
+      widget.currentUser.role == UserRole.admin ||
+          widget.currentUser.role == UserRole.shiftLeader ||
+          widget.currentUser.can('inventory.manage');
+  bool get _canAdjust => _canManage || widget.currentUser.can('inventory.adjust');
 
   final _numFmt = NumberFormat.decimalPattern('vi_VN');
   final _dateFmt = DateFormat('dd/MM/yyyy HH:mm');
@@ -55,6 +65,120 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
       _transactions = results[1] as List<InventoryTransaction>;
       _loading = false;
     });
+  }
+  void _showExportDialog() {
+    DateTime from = DateTime.now().subtract(const Duration(days: 30));
+    DateTime to = DateTime.now();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Xuất báo cáo tồn kho'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Từ ngày'),
+                subtitle: Text(DateFormat('dd/MM/yyyy').format(from)),
+                trailing: const Icon(Icons.calendar_today, size: 18),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: from,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) setDialogState(() => from = picked);
+                },
+              ),
+              ListTile(
+                title: const Text('Đến ngày'),
+                subtitle: Text(DateFormat('dd/MM/yyyy').format(to)),
+                trailing: const Icon(Icons.calendar_today, size: 18),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: to,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) setDialogState(() => to = picked);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.picture_as_pdf, size: 18, color: Colors.red),
+              label: const Text('PDF'),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _doExport(from, to, isPdf: true);
+              },
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.grid_on, size: 18, color: Colors.white),
+              label: const Text('Excel'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _doExport(from, to, isPdf: false);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _doExport(DateTime from, DateTime to, {required bool isPdf}) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final rows = await SupabaseService.getInventoryReport(
+      from: DateTime(from.year, from.month, from.day),
+      to: DateTime(to.year, to.month, to.day, 23, 59, 59),
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    if (rows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không có dữ liệu trong khoảng thời gian này')),
+      );
+      return;
+    }
+
+    String? path;
+    String? errorMsg;
+    try {
+      path = isPdf
+          ? await ReportExportService.exportPdf(rows: rows, from: from, to: to)
+          : await ReportExportService.exportExcel(rows: rows, from: from, to: to);
+    } catch (e, st) {
+      errorMsg = e.toString();
+      debugPrint('Export error: $e\n$st');
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          path != null
+              ? 'Đã lưu file tại: $path'
+              : 'Xuất file thất bại: ${errorMsg ?? "không rõ lỗi"}',
+        ),
+        backgroundColor: path != null ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
 
   List<InventoryItem> get _lowStockItems => _items.where((i) => i.isLowStock).toList();
@@ -102,6 +226,13 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
         foregroundColor: Colors.black87,
         elevation: 0,
         scrolledUnderElevation: 1,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.ios_share_outlined),
+            tooltip: 'Xuất báo cáo Nhập-Xuất-Tồn',
+            onPressed: _showExportDialog,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.deepOrange,
@@ -115,7 +246,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
           ],
         ),
       ),
-      floatingActionButton: _tabController.index == 0
+      floatingActionButton: (_tabController.index == 0 && _canManage)
           ? FloatingActionButton.extended(
         onPressed: _openAddItemDialog,
         backgroundColor: Colors.deepOrange,
@@ -143,13 +274,14 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
         padding: EdgeInsets.zero,
         children: [
           _buildStatsRow(),
+          _buildValueBanner(),
           _buildToolbar(),
           if (_items.isEmpty)
             _buildEmptyState(
               icon: Icons.inventory_2_outlined,
               message: 'Chưa có mặt hàng nào trong kho',
-              actionLabel: 'Thêm mặt hàng đầu tiên',
-              onAction: _openAddItemDialog,
+              actionLabel: _canManage ? 'Thêm mặt hàng đầu tiên' : null,
+              onAction: _canManage ? _openAddItemDialog : null,
             )
           else if (_filteredItems.isEmpty)
             _buildEmptyState(icon: Icons.search_off, message: 'Không tìm thấy mặt hàng phù hợp')
@@ -203,6 +335,26 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
               highlighted: _lowStockItems.isNotEmpty,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildValueBanner() {
+    final totalValue = _items.fold<double>(0, (s, i) => s + i.totalValue);
+    if (totalValue <= 0) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Colors.deepOrange, Colors.orange]),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('TỔNG GIÁ TRỊ TỒN KHO', style: TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.bold)),
+          Text('${_formatQty(totalValue)}đ', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -320,7 +472,11 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                       children: [
                         Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
                         Text(
-                          item.type == InventoryItemType.material ? 'Nguyên liệu' : 'Sản phẩm',
+                          item.costPrice > 0
+                              ? '${item.type == InventoryItemType.material ? 'Nguyên liệu' : 'Sản phẩm'} · ${_formatQty(item.costPrice)}đ/${item.unit}'
+                              : (item.type == InventoryItemType.material ? 'Nguyên liệu' : 'Sản phẩm'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                         ),
                       ],
@@ -338,7 +494,10 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                     '${_formatQty(item.currentStock)} ${item.unit}',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: low ? Colors.red.shade700 : Colors.black87),
                   ),
-                  Text('Ngưỡng: ${_formatQty(item.lowStockThreshold)}', style: TextStyle(fontSize: 10.5, color: Colors.grey.shade400)),
+                  Text(
+                    item.costPrice > 0 ? '${_formatQty(item.totalValue)}đ' : 'Ngưỡng: ${_formatQty(item.lowStockThreshold)}',
+                    style: TextStyle(fontSize: 10.5, color: Colors.grey.shade400),
+                  ),
                 ],
               ),
             ),
@@ -513,6 +672,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
     final unitCtl = TextEditingController(text: 'kg');
     final stockCtl = TextEditingController(text: '0');
     final thresholdCtl = TextEditingController(text: '0');
+    final costCtl = TextEditingController(text: '0');
     final noteCtl = TextEditingController();
     InventoryItemType type = InventoryItemType.material;
     bool saving = false;
@@ -568,6 +728,12 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  controller: costCtl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Giá vốn / đơn vị (không bắt buộc)'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
                   controller: noteCtl,
                   decoration: const InputDecoration(labelText: 'Ghi chú (không bắt buộc)'),
                 ),
@@ -590,6 +756,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                   initialStock: double.tryParse(stockCtl.text.replaceAll(',', '.')) ?? 0,
                   lowStockThreshold: double.tryParse(thresholdCtl.text.replaceAll(',', '.')) ?? 0,
                   note: noteCtl.text.trim().isEmpty ? null : noteCtl.text.trim(),
+                  costPrice: double.tryParse(costCtl.text.replaceAll(',', '.')) ?? 0,
                 );
                 if (!ctx.mounted) return;
                 Navigator.pop(ctx);
@@ -725,6 +892,12 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
   final _dateFmt = DateFormat('dd/MM/yyyy HH:mm');
   final _numFmt = NumberFormat.decimalPattern('vi_VN');
 
+  bool get _canManage =>
+      widget.currentUser.role == UserRole.admin ||
+          widget.currentUser.role == UserRole.shiftLeader ||
+          widget.currentUser.can('inventory.manage');
+  bool get _canAdjust => _canManage || widget.currentUser.can('inventory.adjust');
+
   @override
   void initState() {
     super.initState();
@@ -748,12 +921,18 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
   }
 
   Future<void> _openEditDialog() async {
+    if (!_canManage) return;
     final nameCtl = TextEditingController(text: _item.name);
     final unitCtl = TextEditingController(text: _item.unit);
     final thresholdCtl = TextEditingController(
       text: _item.lowStockThreshold == _item.lowStockThreshold.roundToDouble()
           ? _item.lowStockThreshold.round().toString()
           : _item.lowStockThreshold.toString(),
+    );
+    final costCtl = TextEditingController(
+      text: _item.costPrice == _item.costPrice.roundToDouble()
+          ? _item.costPrice.round().toString()
+          : _item.costPrice.toString(),
     );
     bool saving = false;
 
@@ -781,6 +960,12 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Ngưỡng cảnh báo'),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: costCtl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Giá vốn / đơn vị'),
+              ),
             ],
           ),
           actions: [
@@ -793,18 +978,20 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                 final unit = unitCtl.text.trim();
                 if (name.isEmpty || unit.isEmpty) return;
                 final threshold = double.tryParse(thresholdCtl.text.replaceAll(',', '.')) ?? _item.lowStockThreshold;
+                final cost = double.tryParse(costCtl.text.replaceAll(',', '.')) ?? _item.costPrice;
                 setDialogState(() => saving = true);
                 final ok = await SupabaseService.updateInventoryItem(
                   id: _item.id,
                   name: name,
                   unit: unit,
                   lowStockThreshold: threshold,
+                  costPrice: cost,
                 );
                 if (!ctx.mounted) return;
                 Navigator.pop(ctx);
                 if (ok) {
                   setState(() {
-                    _item = _item.copyWith(name: name, unit: unit, lowStockThreshold: threshold);
+                    _item = _item.copyWith(name: name, unit: unit, lowStockThreshold: threshold, costPrice: cost);
                   });
                   widget.onChanged();
                   if (mounted) {
@@ -831,6 +1018,7 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
   }
 
   Future<void> _confirmDelete() async {
+    if (!_canManage) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -864,8 +1052,10 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
   }
 
   Future<void> _openAdjustDialog(InventoryTransactionType type) async {
+    if (!_canAdjust) return;
     final qtyCtl = TextEditingController();
     final noteCtl = TextEditingController();
+    final costCtl = TextEditingController();
     bool saving = false;
     final title = type == InventoryTransactionType.stockIn
         ? 'Nhập kho'
@@ -892,6 +1082,17 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                       : 'Số lượng (${_item.unit})',
                 ),
               ),
+              if (type == InventoryTransactionType.stockIn) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: costCtl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'Giá vốn / ${_item.unit} (không bắt buộc)',
+                    hintText: _item.costPrice > 0 ? 'Hiện tại: ${_item.costPrice.round()}' : null,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: noteCtl,
@@ -916,6 +1117,12 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                   userId: widget.currentUser.id,
                   userName: widget.currentUser.name,
                 );
+                if (ok && type == InventoryTransactionType.stockIn) {
+                  final newCost = double.tryParse(costCtl.text.replaceAll(',', '.'));
+                  if (newCost != null && newCost > 0) {
+                    await SupabaseService.updateInventoryCostPrice(itemId: _item.id, costPrice: newCost);
+                  }
+                }
                 if (!ctx.mounted) return;
                 Navigator.pop(ctx);
                 if (!ok && mounted) {
@@ -976,20 +1183,21 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                 ),
                 _StatusBadge(isLow: item.isLowStock),
                 const SizedBox(width: 4),
-                PopupMenuButton<String>(
-                  enabled: !_deleting,
-                  onSelected: (v) {
-                    if (v == 'edit') _openEditDialog();
-                    if (v == 'delete') _confirmDelete();
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Sửa mặt hàng'))),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: ListTile(leading: Icon(Icons.delete_outline, color: Colors.red), title: Text('Xóa mặt hàng', style: TextStyle(color: Colors.red))),
-                    ),
-                  ],
-                ),
+                if (_canManage)
+                  PopupMenuButton<String>(
+                    enabled: !_deleting,
+                    onSelected: (v) {
+                      if (v == 'edit') _openEditDialog();
+                      if (v == 'delete') _confirmDelete();
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Sửa mặt hàng'))),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: ListTile(leading: Icon(Icons.delete_outline, color: Colors.red), title: Text('Xóa mặt hàng', style: TextStyle(color: Colors.red))),
+                      ),
+                    ],
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -1028,36 +1236,68 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                 ],
               ),
             ),
+            if (item.costPrice > 0) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFAFAFA),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Giá vốn / ${item.unit}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        const SizedBox(height: 2),
+                        Text('${_formatQty(item.costPrice)}đ', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('Giá trị tồn kho', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                        Text('${_formatQty(item.totalValue)}đ', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.deepOrange)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openAdjustDialog(InventoryTransactionType.stockIn),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Nhập'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            if (_canAdjust)
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openAdjustDialog(InventoryTransactionType.stockIn),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Nhập'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openAdjustDialog(InventoryTransactionType.stockOut),
-                    icon: const Icon(Icons.remove, size: 18),
-                    label: const Text('Xuất'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openAdjustDialog(InventoryTransactionType.stockOut),
+                      icon: const Icon(Icons.remove, size: 18),
+                      label: const Text('Xuất'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openAdjustDialog(InventoryTransactionType.adjustment),
-                    icon: const Icon(Icons.tune_rounded, size: 18),
-                    label: const Text('Kiểm kê'),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openAdjustDialog(InventoryTransactionType.adjustment),
+                      icon: const Icon(Icons.tune_rounded, size: 18),
+                      label: const Text('Kiểm kê'),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 24),
             Text('LỊCH SỬ GẦN ĐÂY', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade500, fontSize: 11.5, letterSpacing: 0.3)),
             const SizedBox(height: 8),
@@ -1110,4 +1350,5 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
       },
     );
   }
+
 }

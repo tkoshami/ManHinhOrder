@@ -1124,6 +1124,7 @@ class SupabaseService {
     double lowStockThreshold = 0,
     int? linkedProductId,
     String? note,
+    double costPrice = 0,
   }) async {
     try {
       final row = await _supabase
@@ -1136,6 +1137,7 @@ class SupabaseService {
         'low_stock_threshold': lowStockThreshold,
         if (linkedProductId != null) 'linked_product_id': linkedProductId,
         if (note != null && note.isNotEmpty) 'note': note,
+        'cost_price': costPrice,
       })
           .select()
           .single();
@@ -1153,6 +1155,7 @@ class SupabaseService {
     required double lowStockThreshold,
     int? linkedProductId,
     String? note,
+    double? costPrice,
   }) async {
     try {
       await _supabase.from('inventory_items').update({
@@ -1161,10 +1164,26 @@ class SupabaseService {
         'low_stock_threshold': lowStockThreshold,
         'linked_product_id': linkedProductId,
         'note': note,
+        if (costPrice != null) 'cost_price': costPrice,
       }).eq('id', id);
       return true;
     } catch (e) {
       print('updateInventoryItem error: $e');
+      return false;
+    }
+  }
+
+  /// Cập nhật riêng giá vốn — gọi ngay sau khi Nhập kho thành công nếu
+  /// admin có nhập giá mới, không cần đụng các trường khác.
+  static Future<bool> updateInventoryCostPrice({
+    required int itemId,
+    required double costPrice,
+  }) async {
+    try {
+      await _supabase.from('inventory_items').update({'cost_price': costPrice}).eq('id', itemId);
+      return true;
+    } catch (e) {
+      print('updateInventoryCostPrice error: $e');
       return false;
     }
   }
@@ -1300,6 +1319,22 @@ class SupabaseService {
       return List<Map<String, dynamic>>.from(rows);
     } catch (e) {
       print('checkRecipeStock error: $e');
+      return [];
+    }
+  }
+// ── Báo cáo Nhập - Xuất - Tồn ──
+  static Future<List<Map<String, dynamic>>> getInventoryReport({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    try {
+      final rows = await _supabase.rpc('get_inventory_report', params: {
+        'p_from': from.toIso8601String(),
+        'p_to': to.toIso8601String(),
+      });
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      print('getInventoryReport error: $e');
       return [];
     }
   }

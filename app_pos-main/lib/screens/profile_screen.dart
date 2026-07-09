@@ -84,7 +84,7 @@ class ProfileScreen extends StatelessWidget {
               label: 'Quyền hạn',
               value: _getRoleName(user.role),
             ),
-            if (user.role == UserRole.admin) ...[
+            if (user.role == UserRole.admin || user.permissions.isNotEmpty) ...[
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),

@@ -153,6 +153,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (ok) _loadActiveShifts();
   }
 
+  bool _canAny(List<String> keys) {
+    if (widget.user.role == UserRole.admin) return true;
+    return keys.any((k) => widget.user.can(k));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -178,49 +183,56 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const SizedBox(height: 20),
               _buildActiveShiftsSection(),
               const SizedBox(height: 20),
-              _AdminMenuCard(
-                icon: Icons.people_alt,
-                color: Colors.purple,
-                title: 'Quản lý tài khoản',
-                subtitle: 'Thêm, sửa, xóa tài khoản nhân viên và thu ngân',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AdminUsersScreen()),
+              if (_canAny(['users.manage'])) ...[
+                _AdminMenuCard(
+                  icon: Icons.people_alt,
+                  color: Colors.purple,
+                  title: 'Quản lý tài khoản',
+                  subtitle: 'Thêm, sửa, xóa tài khoản nhân viên và thu ngân',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => AdminUsersScreen(currentUser: widget.user)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.restaurant_menu,
-                color: Colors.green,
-                title: 'Quản lý món ăn',
-                subtitle: 'Thêm, sửa, xóa món và cập nhật giá, hình ảnh',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AdminProductsScreen()),
+                const SizedBox(height: 14),
+              ],
+              if (_canAny(['products.manage'])) ...[
+                _AdminMenuCard(
+                  icon: Icons.restaurant_menu,
+                  color: Colors.green,
+                  title: 'Quản lý món ăn',
+                  subtitle: 'Thêm, sửa, xóa món và cập nhật giá, hình ảnh',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminProductsScreen()),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.bar_chart,
-                color: Colors.orange,
-                title: 'Báo cáo',
-                subtitle: 'Doanh thu tiền mặt / chuyển khoản và báo cáo ca làm việc',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AdminReportsScreen()),
+                const SizedBox(height: 14),
+              ],
+              if (_canAny(['reports.view'])) ...[
+                _AdminMenuCard(
+                  icon: Icons.bar_chart,
+                  color: Colors.orange,
+                  title: 'Báo cáo',
+                  subtitle: 'Doanh thu tiền mặt / chuyển khoản và báo cáo ca làm việc',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminReportsScreen()),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.admin_panel_settings,
-                color: Colors.indigo,
-                title: 'Phân quyền',
-                subtitle: 'Bật/tắt chức năng theo vai trò hoặc riêng từng tài khoản',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PermissionManagementScreen()),
+                const SizedBox(height: 14),
+              ],
+              if (_canAny(['permissions.manage']))
+                _AdminMenuCard(
+                  icon: Icons.admin_panel_settings,
+                  color: Colors.indigo,
+                  title: 'Phân quyền',
+                  subtitle: 'Bật/tắt chức năng theo vai trò hoặc riêng từng tài khoản',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PermissionManagementScreen()),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -277,6 +289,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: _ActiveShiftCard(
               shift: shift,
               currencyFormat: currencyFormat,
+              canForceClose: _canAny(['shifts.force_close']),
               onForceClose: () => _forceCloseShift(shift),
             ),
           )),
@@ -289,11 +302,13 @@ class _ActiveShiftCard extends StatelessWidget {
   final Map<String, dynamic> shift;
   final NumberFormat currencyFormat;
   final VoidCallback onForceClose;
+  final bool canForceClose;
 
   const _ActiveShiftCard({
     required this.shift,
     required this.currencyFormat,
     required this.onForceClose,
+    this.canForceClose = true,
   });
 
   @override
@@ -381,20 +396,21 @@ class _ActiveShiftCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 38,
-            child: OutlinedButton.icon(
-              onPressed: onForceClose,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red.shade400,
-                side: BorderSide(color: Colors.red.shade200),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          if (canForceClose)
+            SizedBox(
+              width: double.infinity,
+              height: 38,
+              child: OutlinedButton.icon(
+                onPressed: onForceClose,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red.shade400,
+                  side: BorderSide(color: Colors.red.shade200),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.logout_rounded, size: 16),
+                label: const Text('Đóng ca hộ', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
               ),
-              icon: const Icon(Icons.logout_rounded, size: 16),
-              label: const Text('Đóng ca hộ', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
             ),
-          ),
         ],
       ),
     );

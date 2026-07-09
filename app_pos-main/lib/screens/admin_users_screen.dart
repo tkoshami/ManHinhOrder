@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:pos_fnb/models/app_models.dart';
 import 'package:pos_fnb/services/supabase_service.dart';
 
 /// Màn hình quản lý tài khoản con (admin): thêm, sửa, đổi mật khẩu, xóa.
 class AdminUsersScreen extends StatefulWidget {
-  const AdminUsersScreen({super.key});
+  final UserAccount currentUser;
+  const AdminUsersScreen({super.key, required this.currentUser});
 
   @override
   State<AdminUsersScreen> createState() => _AdminUsersScreenState();
@@ -15,7 +17,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   bool _loading = true;
   String _search = '';
 
-  static const _roles = ['admin', 'shift_leader', 'cashier', 'user'];
+  static const _allRoles = ['admin', 'shift_leader', 'cashier', 'user'];
+
+  /// Chỉ Admin, hoặc người được cấp riêng quyền `users.assign_admin`, mới
+  /// được phép gán/duy trì vai trò Admin cho tài khoản khác — tránh trường
+  /// hợp một tài khoản chỉ được cấp `users.manage` (ví dụ Trưởng ca) tự
+  /// tạo/leo thang thành Admin.
+  bool get _canAssignAdmin =>
+      widget.currentUser.role == UserRole.admin || widget.currentUser.can('users.assign_admin');
+
+  List<String> get _roles => _canAssignAdmin ? _allRoles : _allRoles.where((r) => r != 'admin').toList();
 
   @override
   void initState() {
@@ -70,6 +81,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       return name.contains(q) || email.contains(q);
     }).toList();
   }
+
+  /// Tài khoản Admin chỉ được sửa/xóa/đổi role bởi Admin khác (hoặc người
+  /// có quyền `users.assign_admin`) — chặn việc một tài khoản chỉ có
+  /// `users.manage` tự ý sửa/hạ quyền/xóa tài khoản Admin thật.
+  bool _isProtectedAdmin(Map<String, dynamic> user) =>
+      (user['role']?.toString() == 'admin') && !_canAssignAdmin;
 
   Future<void> _openCreateDialog() async {
     final emailCtl = TextEditingController();
@@ -171,6 +188,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Future<void> _openEditDialog(Map<String, dynamic> user) async {
+    if (_isProtectedAdmin(user)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Bạn không có quyền chỉnh sửa tài khoản Admin'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
     final nameCtl = TextEditingController(text: user['full_name'] ?? '');
     String role = (user['role'] ?? 'user').toString();
     bool isSaving = false;
@@ -247,6 +271,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Future<void> _openChangePasswordDialog(Map<String, dynamic> user) async {
+    if (_isProtectedAdmin(user)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Bạn không có quyền đổi mật khẩu tài khoản Admin'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
     final passCtl = TextEditingController();
     bool isSaving = false;
     bool obscure = true;
@@ -308,6 +339,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Future<void> _deleteUser(Map<String, dynamic> user) async {
+    if (_isProtectedAdmin(user)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Bạn không có quyền xóa tài khoản Admin'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -439,7 +477,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                             ],
                           ),
                         ),
-                        PopupMenuButton<String>(
+                        _isProtectedAdmin(u)
+                            ? Icon(Icons.lock_outline, color: Colors.grey.shade400, size: 20)
+                            : PopupMenuButton<String>(
                           onSelected: (v) {
                             if (v == 'edit') _openEditDialog(u);
                             if (v == 'password') _openChangePasswordDialog(u);
