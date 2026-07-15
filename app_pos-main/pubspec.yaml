@@ -1,0 +1,53 @@
+name: pos_fnb
+description: "POS app for F&B inventory system"
+publish_to: 'none'
+
+version: 1.0.1+2
+
+environment:
+  sdk: ^3.12.0-327.4.beta
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & Utilities
+  intl: ^0.19.0
+  cupertino_icons: ^1.0.8
+
+  # Supabase
+  supabase_flutter: ^2.15.0
+
+  # Image
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
+
+  # Network
+  http: ^1.2.1
+
+  # Storage
+  # Storage
+  shared_preferences: ^2.2.3
+
+  # Export báo cáo
+  excel: ^4.0.6
+  pdf: ^3.10.8
+  printing: ^5.12.0
+  share_plus: ^7.2.1
+
+  # QR Code
+  # QR Code
+  qr_flutter: ^4.1.0
+
+  # Printer
+  sunmi_printer_plus: 4.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
