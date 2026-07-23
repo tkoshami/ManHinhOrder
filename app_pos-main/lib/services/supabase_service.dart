@@ -547,6 +547,7 @@ class SupabaseService {
         'p_vat_amount': order.vatAmount,
         'p_total_amount': order.totalAmount,
         'p_payment_method': order.paymentMethod,
+        'p_table_number': order.tableOrCustomer,
       });
       if (response is List && response.isNotEmpty) {
         return SavedOrder.fromJson(Map<String, dynamic>.from(response.first));
@@ -725,6 +726,30 @@ class SupabaseService {
     }
   }
 
+  /// Đánh dấu 1 đơn "đã xong món" (bếp làm xong), KHÔNG phải thanh toán.
+  /// Đơn vẫn giữ trạng thái đang chờ trên bàn (chưa `completed`) cho tới
+  /// khi thu ngân thực sự thanh toán qua [completePendingOrder].
+  static Future<SavedOrder?> markOrderCookingDone(String orderId) async {
+    final parsedId = int.tryParse(orderId);
+    if (parsedId == null) return null;
+    try {
+      final response = await _supabase.rpc(
+        'mark_order_cooking_done',
+        params: {'p_order_id': parsedId},
+      );
+      if (response is List && response.isNotEmpty) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response.first));
+      }
+      if (response is Map) {
+        return SavedOrder.fromJson(Map<String, dynamic>.from(response));
+      }
+      return null;
+    } catch (e) {
+      print('Lỗi đánh dấu đơn xong món: $e');
+      return null;
+    }
+  }
+
   /// Admin sửa lại danh sách món trong 1 đơn hàng, tự tính lại
   /// subtotal/vat/total, và đánh dấu `is_edited = true` (chỉ hiện
   /// nhãn "Đã sửa" ở màn Báo cáo dành cho admin).
@@ -821,8 +846,13 @@ class SupabaseService {
     return _supabase
         .from('orders')
         .stream(primaryKey: ['id'])
-        .eq('status', 'pending')
+    // Không filter theo status ở tầng stream (SupabaseStreamFilterBuilder
+    // không hỗ trợ .filter()/.inFilter() chung) — lấy toàn bộ đơn, việc
+    // xác định đơn nào còn "active" (pending/cooking) xử lý ở phía
+    // client trong _mergePendingOrders / _syncPendingOrdersFromDatabase.
+    // Giới hạn 300 đơn gần nhất để tránh kéo toàn bộ lịch sử đơn hàng.
         .order('created_at', ascending: false)
+        .limit(300)
         .map((data) => data.map((json) => SavedOrder.fromJson(json)).toList());
   }
 

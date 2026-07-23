@@ -10,7 +10,11 @@ import 'package:pos_fnb/widgets/product_image.dart';
 import 'package:pos_fnb/widgets/real_time_clock.dart';
 
 class SelfOrderScreen extends StatefulWidget {
-  const SelfOrderScreen({super.key});
+  /// Tên bàn lấy từ tham số ?table= trên URL mã QR (VD "Bàn 3").
+  /// Null nếu quét mã QR chung (menu, không gắn bàn cụ thể).
+  final String? tableNumber;
+
+  const SelfOrderScreen({super.key, this.tableNumber});
 
   @override
   State<SelfOrderScreen> createState() => _SelfOrderScreenState();
@@ -36,7 +40,12 @@ class _SelfOrderScreenState extends State<SelfOrderScreen> {
   @override
   void initState() {
     super.initState();
-    _tableName = _readTableFromUrl();
+    // Ưu tiên giá trị main.dart đã đọc và truyền xuống ngay lúc khởi động
+    // app (đáng tin cậy nhất). Chỉ tự đọc lại Uri.base như phương án dự
+    // phòng — vì sau khi Navigator/MaterialApp dựng xong route, trình
+    // duyệt có thể đã viết lại URL và làm mất tham số ?table=... nếu đọc
+    // lại ở đây.
+    _tableName = widget.tableNumber ?? _readTableFromUrl();
     _loadData();
   }
 

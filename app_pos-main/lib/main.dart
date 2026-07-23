@@ -17,11 +17,18 @@ String _initialRouteForCurrentUrl() {
   final path = Uri.base.path;
   if (path == '/self-order' ||
       path == '/self-order/' ||
-      path == '/zonzon' ||
-      path == '/zonzon/') {
+      path == '/HuyCua' ||
+      path == '/HuyCua/') {
     return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
   }
   return '/';
+}
+
+/// Đọc tên bàn từ URL mã QR (VD .../self-order?table=Bàn%201).
+/// Uri.base phản ánh đúng URL trình duyệt lúc app khởi động.
+String? _initialTableFromUrl() {
+  final table = Uri.base.queryParameters['table'];
+  return (table != null && table.trim().isNotEmpty) ? table.trim() : null;
 }
 
 class MyApp extends StatelessWidget {
@@ -39,7 +46,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-         fillColor: Colors.white,
+          fillColor: Colors.white,
           labelStyle: const TextStyle(color: Colors.black),
           hintStyle: const TextStyle(color: Colors.grey),
           border: OutlineInputBorder(
@@ -64,8 +71,10 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: _initialRouteForCurrentUrl(),
       onGenerateRoute: (settings) {
-        if (settings.name == '/self-order' || settings.name == '/zonzon') {
-          return MaterialPageRoute(builder: (_) => const SelfOrderScreen());
+        if (settings.name == '/self-order' || settings.name == '/HuyCua') {
+          return MaterialPageRoute(
+            builder: (_) => SelfOrderScreen(tableNumber: _initialTableFromUrl()),
+          );
         }
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       },

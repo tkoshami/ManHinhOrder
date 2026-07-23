@@ -496,12 +496,15 @@ class _OrderScreenState extends State<OrderScreen> {
 
     globalPendingOrders.removeWhere((order) {
       final id = order.id;
-      if (id == null) return order.status != OrderStatus.pending;
+      // "cooking" = đã xong món, vẫn chờ thanh toán → coi như active,
+      // KHÔNG xóa khỏi bàn/danh sách chờ.
+      final isActive = order.status == OrderStatus.pending ||
+          order.status == OrderStatus.cooking;
+      if (id == null) return !isActive;
       final parsedId = int.tryParse(id);
       final isLocalOnly = parsedId == null || parsedId > 1000000000000;
 
-      if (_closedPendingOrderIds.contains(id) ||
-          order.status != OrderStatus.pending) {
+      if (_closedPendingOrderIds.contains(id) || !isActive) {
         return true;
       }
 
@@ -517,7 +520,9 @@ class _OrderScreenState extends State<OrderScreen> {
       }) {
     for (final newOrder in orders) {
       final orderId = newOrder.id;
-      if (newOrder.status != OrderStatus.pending ||
+      final isActive = newOrder.status == OrderStatus.pending ||
+          newOrder.status == OrderStatus.cooking;
+      if (!isActive ||
           (orderId != null && _closedPendingOrderIds.contains(orderId))) {
         continue;
       }
@@ -545,6 +550,38 @@ class _OrderScreenState extends State<OrderScreen> {
         _printBill(newOrder);
       }
     }
+  }
+
+  /// Đánh dấu 1 đơn khách QR/kiosk "đã xong món" — chỉ đổi trạng thái nấu
+  /// bếp (pending → cooking), KHÔNG thanh toán. Đơn vẫn giữ nguyên trên
+  /// bàn/danh sách chờ; nút trong danh sách sẽ tự chuyển thành "THANH
+  /// TOÁN" sau khi trạng thái này được cập nhật.
+  Future<void> _markOrderCookingDone(SavedOrder order) async {
+    if (order.id == null) return;
+    final updated = await SupabaseService.markOrderCookingDone(order.id!);
+    if (!mounted) return;
+    if (updated == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không đánh dấu được, vui lòng thử lại'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    _syncState(() {
+      final idx = globalPendingOrders.indexWhere((o) => o.id == order.id);
+      if (idx >= 0) {
+        globalPendingOrders[idx] = updated;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${order.tableOrCustomer}: đã xong món, chờ thanh toán'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _printBill(
@@ -3383,12 +3420,42 @@ class _OrderScreenState extends State<OrderScreen> {
                 ),
                 child: (order.source == OrderSource.qrCode ||
                     order.source == OrderSource.kiosk)
+                    ? (order.status == OrderStatus.cooking
                     ? SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () {
+                      // Đơn đã xong món — giờ mới thực sự thanh toán.
                       // _finishPayment đã có sẵn Navigator.pop(context) để đóng popup
                       _finishPayment(order, 'Chuyển khoản');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: const Icon(Icons.payments_rounded, size: 20),
+                    label: const Text(
+                      'THANH TOÁN',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                )
+                    : SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      // Chỉ đánh dấu bếp đã làm xong món — KHÔNG thanh
+                      // toán. Đơn vẫn giữ nguyên trên bàn cho tới khi
+                      // thu ngân bấm "THANH TOÁN" (nút xuất hiện sau khi
+                      // trạng thái chuyển sang "cooking").
+                      _markOrderCookingDone(order);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
@@ -3400,14 +3467,14 @@ class _OrderScreenState extends State<OrderScreen> {
                     ),
                     icon: const Icon(Icons.done_all, size: 20),
                     label: const Text(
-                      'HOÀN TẤT',
+                      'HOÀN TẤT MÓN',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                )
+                ))
                     : Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [

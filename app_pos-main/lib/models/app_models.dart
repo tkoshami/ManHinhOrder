@@ -342,8 +342,9 @@ class SavedOrder {
   static String _statusToDatabase(OrderStatus status) {
     switch (status) {
       case OrderStatus.pending:
-      case OrderStatus.cooking:
         return 'pending';
+      case OrderStatus.cooking:
+        return 'cooking';
       case OrderStatus.completed:
         return 'paid';
       case OrderStatus.cancelled:

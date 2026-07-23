@@ -15,7 +15,7 @@ class QrGeneratorScreen extends StatefulWidget {
 
 class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
   // Đường dẫn deploy thực tế của trang tự gọi món.
-  static const String _baseUrl = 'https://web-mar-pos.vercel.app/zonzon';
+  static const String _baseUrl = 'https://mar-order.vercel.app/HuyCua';
 
   bool _loading = true;
   List<Map<String, dynamic>> _tables = [];
